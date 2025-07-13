@@ -15,7 +15,8 @@ export function addDevCommands(program: Command): { cleanupDev: () => void } {
         .option('-w, --watch <patterns>', 'Watch additional patterns (comma-separated)', 'src/**/*')
         .option('-i, --ignore <patterns>', 'Ignore patterns (comma-separated)', 'node_modules,dist,build,.git,coverage')
         .option('-e, --ext <extensions>', 'File extensions to watch (comma-separated)', 'ts,tsx,js,jsx,json')
-        .option('-d, --delay <ms>', 'Delay before restart (ms)', parseInt, 800)
+        .option('-d, --delay <ms>', 'Delay before restart (ms)', parseInt, 500)
+        .option('--fast', 'Enable fast hot reload (shorter delays)')
         .option('-c, --no-color', 'Disable colored output')
         .option('-q, --quiet', 'Reduce output verbosity')
         .option('-v, --verbose', 'Verbose output')
@@ -31,6 +32,9 @@ export function addDevCommands(program: Command): { cleanupDev: () => void } {
         .action(async (file, options) => {
             try {
                 const targetFile = file || 'src/index.ts';
+                
+                // تنظیمات fast mode
+                const delay = options.fast ? 200 : options.delay;
                 
                 if (!options.quiet) {
                     loggerManager.printLine(`${chalk.blue(figures.info)} Starting ${chalk.cyan('neex dev')} for ${chalk.cyan(targetFile)}`, 'info');
@@ -50,7 +54,7 @@ export function addDevCommands(program: Command): { cleanupDev: () => void } {
                     watch: options.watch.split(',').map((p: string) => p.trim()),
                     ignore: options.ignore.split(',').map((p: string) => p.trim()),
                     extensions: options.ext.split(',').map((e: string) => e.trim()),
-                    delay: options.delay,
+                    delay: delay,
                     color: options.color,
                     quiet: options.quiet,
                     verbose: options.verbose,

@@ -471,7 +471,11 @@ export class DevManager {
             ignoreInitial: true,
             followSymlinks: false,
             usePolling: false,
-            atomic: 300
+            atomic: 200,        // سریع‌تر تشخیص تغییرات
+            awaitWriteFinish: { // منتظر تمام شدن نوشتن فایل
+                stabilityThreshold: 100,
+                pollInterval: 50
+            }
         });
 
         this.watcher.on('change', (filePath: string) => {
