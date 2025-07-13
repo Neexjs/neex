@@ -1,0 +1,57 @@
+{
+  "name": "neex",
+  "version": "0.6.45",
+  "description": "The Modern Build System for Polyrepo-in-Monorepo Architecture",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "bin": {
+    "neex": "./dist/bin/neex.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/bin/neex.js",
+    "prepublishOnly": "npm run build",
+    "test": "jest",
+    "dev": "neex w \"ts-node src/server.ts\"",
+    "w": "neex w \"ts-node src/server.ts\"",
+    "test:dev": "node ./dist/bin/neex.js px \"echo Starting frontend\" \"echo Starting backend\"",
+    "test:parallel": "node ./dist/src/cli.js parallel \"echo Building frontend\" \"echo Building backend\"",
+    "test:sequence": "node ./dist/src/cli.js run \"echo Step 1\" \"echo Step 2\" \"echo Step 3\""
+  },
+  "keywords": [
+    "npm",
+    "run",
+    "script",
+    "parallel",
+    "sequential",
+    "command",
+    "cli"
+  ],
+  "author": "foshati",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^9.4.0",
+    "figlet": "^1.8.1",
+    "figures": "^3.2.0",
+    "gradient-string": "^3.0.0",
+    "npm-run-path": "^4.0.1",
+    "p-map": "^4.0.0",
+    "string-width": "^4.2.3"
+  },
+  "devDependencies": {
+    "@types/figlet": "^1.7.0",
+    "@types/jest": "^29.2.3",
+    "@types/node": "^18.11.9",
+    "jest": "^29.3.1",
+    "ts-jest": "^29.0.3",
+    "typescript": "^4.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Neexjs"
+  }
+}
