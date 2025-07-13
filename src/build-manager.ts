@@ -136,7 +136,7 @@ export class BuildManager {
         
         if (!this.options.quiet) {
             const buildNumber = this.options.watch ? ` #${this.buildCount}` : '';
-            loggerManager.printLine(`${chalk.blue(figures.info)} Building${buildNumber}...`, 'info');
+            loggerManager.printLine(`${chalk.green(figures.play)} Building${buildNumber}...`, 'info');
         }
 
         try {
@@ -418,7 +418,7 @@ export class BuildManager {
 
     public async stop(): Promise<void> {
         if (!this.options.quiet) {
-            loggerManager.printLine(`${chalk.yellow(figures.warning)} Stopping build process...`, 'info');
+            loggerManager.printLine(`${chalk.yellow('⏹')} Stopping build process...`, 'info');
         }
 
         if (this.watcher) {
@@ -430,7 +430,7 @@ export class BuildManager {
 
         if (this.buildCount > 0 && !this.options.quiet) {
             loggerManager.printLine(
-                `${chalk.blue(figures.info)} Build process stopped after ${this.buildCount} build(s)`,
+                `${chalk.blue('ℹ')} Build process stopped after ${this.buildCount} build(s).`,
                 'info'
             );
         }

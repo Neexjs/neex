@@ -1,4 +1,4 @@
-// src/dev-manager.ts - Enhanced TypeScript development server with built-in compilation
+// src/dev-manager.ts - Ultra-fast TypeScript development server like tsx
 import { spawn, ChildProcess } from 'child_process';
 import { watch } from 'chokidar';
 import { loggerManager } from './logger-manager.js';
@@ -8,7 +8,7 @@ import path from 'path';
 import fs from 'fs';
 import { debounce } from 'lodash';
 import * as ts from 'typescript';
-import { createRequire } from 'module';
+import crypto from 'crypto';
 
 export interface DevOptions {
     file: string;
@@ -30,10 +30,12 @@ export interface DevOptions {
     nodeArgs: string[];
 }
 
-interface CompiledModule {
+interface ModuleInfo {
     code: string;
     map?: string;
-    dependencies: Set<string>;
+    hash: string;
+    timestamp: number;
+    dependencies: string[];
 }
 
 export class DevManager {
@@ -44,14 +46,29 @@ export class DevManager {
     private restartCount = 0;
     private startTime: Date | null = null;
     private debouncedRestart: () => void;
-    private moduleCache = new Map<string, CompiledModule>();
+    private moduleCache = new Map<string, ModuleInfo>();
     private tsCompilerOptions: ts.CompilerOptions;
-    private fileWatcher: Map<string, boolean> = new Map();
+    private tempDir: string;
+    private currentTempFile: string | null = null;
+    private isShuttingDown = false;
 
     constructor(options: DevOptions) {
         this.options = options;
-        this.debouncedRestart = debounce(this.restart.bind(this), options.delay);
+        this.tempDir = path.join(process.cwd(), '.neex-temp');
+        this.debouncedRestart = debounce(this.restart.bind(this), Math.max(options.delay, 100));
         this.tsCompilerOptions = this.loadTsConfig();
+        this.setupTempDir();
+    }
+
+    private setupTempDir(): void {
+        if (fs.existsSync(this.tempDir)) {
+            try {
+                fs.rmSync(this.tempDir, { recursive: true, force: true });
+            } catch (error) {
+                // Ignore cleanup errors
+            }
+        }
+        fs.mkdirSync(this.tempDir, { recursive: true });
     }
 
     private loadTsConfig(): ts.CompilerOptions {
@@ -61,8 +78,6 @@ export class DevManager {
             module: ts.ModuleKind.CommonJS,
             moduleResolution: ts.ModuleResolutionKind.NodeJs,
             allowJs: true,
-            outDir: undefined,
-            rootDir: undefined,
             strict: false,
             esModuleInterop: true,
             skipLibCheck: true,
@@ -72,37 +87,27 @@ export class DevManager {
             sourceMap: this.options.sourceMaps,
             inlineSourceMap: false,
             inlineSources: false,
+            removeComments: false,
+            preserveConstEnums: false,
+            isolatedModules: true, // For faster compilation
         };
 
         if (fs.existsSync(configPath)) {
             try {
                 const configFile = ts.readConfigFile(configPath, ts.sys.readFile);
-                if (configFile.error) {
-                    loggerManager.printLine(`Error reading tsconfig.json: ${configFile.error.messageText}`, 'warn');
-                    return defaultOptions;
+                if (!configFile.error) {
+                    const parsedConfig = ts.parseJsonConfigFileContent(
+                        configFile.config,
+                        ts.sys,
+                        path.dirname(configPath)
+                    );
+                    
+                    if (parsedConfig.errors.length === 0) {
+                        return { ...defaultOptions, ...parsedConfig.options };
+                    }
                 }
-
-                const parsedConfig = ts.parseJsonConfigFileContent(
-                    configFile.config,
-                    ts.sys,
-                    path.dirname(configPath)
-                );
-
-                if (parsedConfig.errors.length > 0) {
-                    loggerManager.printLine(`Error parsing tsconfig.json: ${parsedConfig.errors[0].messageText}`, 'warn');
-                    return defaultOptions;
-                }
-
-                // Override some options for development
-                const options = { ...parsedConfig.options, ...defaultOptions };
-                
-                if (this.options.verbose) {
-                    loggerManager.printLine(`Loaded TypeScript config from ${configPath}`, 'info');
-                }
-
-                return options;
             } catch (error) {
-                loggerManager.printLine(`Failed to load tsconfig.json: ${(error as Error).message}`, 'warn');
+                // Fall back to defaults
             }
         }
 
@@ -110,11 +115,13 @@ export class DevManager {
     }
 
     private loadEnvFile(): void {
-        if (this.options.envFile && fs.existsSync(this.options.envFile)) {
+        let count = 0;
+        const envFile = this.options.envFile;
+
+        if (envFile && fs.existsSync(envFile)) {
             try {
-                const envContent = fs.readFileSync(this.options.envFile, 'utf8');
+                const envContent = fs.readFileSync(envFile, 'utf8');
                 const lines = envContent.split('\n');
-                let loadedCount = 0;
                 
                 for (const line of lines) {
                     const trimmed = line.trim();
@@ -122,219 +129,223 @@ export class DevManager {
                         const [key, ...values] = trimmed.split('=');
                         if (key && values.length > 0) {
                             process.env[key.trim()] = values.join('=').trim().replace(/^["']|["']$/g, '');
-                            loadedCount++;
+                            count++;
                         }
                     }
                 }
-                
-                if (!this.options.quiet && loadedCount > 0) {
-                    loggerManager.printLine(
-                        `${chalk.dim(figures.info)} Loaded ${loadedCount} env variable${loadedCount > 1 ? 's' : ''} from ${path.basename(this.options.envFile)}`,
-                        'info'
-                    );
-                } else if (this.options.verbose) {
-                    loggerManager.printLine(`${chalk.dim(figures.info)} No env variables found in ${this.options.envFile}`, 'info');
+
+                if (!this.options.quiet) {
+                    loggerManager.printLine(`${chalk.green(figures.play)} Loaded ${count} env variables from ${envFile}`, 'info');
                 }
             } catch (error) {
-                loggerManager.printLine(`${chalk.yellow(figures.warning)} Failed to load ${this.options.envFile}: ${(error as Error).message}`, 'warn');
+                if (this.options.verbose) {
+                    loggerManager.printLine(`Failed to load ${envFile}: ${(error as Error).message}`, 'warn');
+                }
             }
         }
     }
 
-    private compileTypeScript(filePath: string): CompiledModule {
-        const absolutePath = path.resolve(filePath);
-        
-        // Check cache first
-        const cached = this.moduleCache.get(absolutePath);
-        if (cached && !this.options.transpileOnly) {
-            return cached;
-        }
+    private createHash(content: string): string {
+        return crypto.createHash('md5').update(content).digest('hex');
+    }
 
-        try {
-            const sourceCode = fs.readFileSync(absolutePath, 'utf8');
-            const dependencies = new Set<string>();
+    private extractDependencies(sourceCode: string, filePath: string): string[] {
+        const dependencies: string[] = [];
+        const importRegex = /(?:import|require)\s*(?:\([^)]*\)|[^;]+?from\s+)?['"`]([^'"`]+)['"`]/g;
+        let match;
 
-            // Extract import/require dependencies
-            const importRegex = /(?:import|require)\s*(?:\(.*?\)|.*?from\s+)['"`]([^'"`]+)['"`]/g;
-            let match;
-            while ((match = importRegex.exec(sourceCode)) !== null) {
-                if (!match[1].startsWith('.')) continue;
-                const depPath = path.resolve(path.dirname(absolutePath), match[1]);
-                dependencies.add(depPath);
-            }
-
-            let result: ts.TranspileOutput;
-            
-            if (this.options.transpileOnly) {
-                // Fast transpile without type checking
-                result = ts.transpileModule(sourceCode, {
-                    compilerOptions: this.tsCompilerOptions,
-                    fileName: absolutePath,
-                    reportDiagnostics: false
-                });
-            } else {
-                // Full compilation with type checking
-                const program = ts.createProgram([absolutePath], this.tsCompilerOptions);
-                const sourceFile = program.getSourceFile(absolutePath);
+        while ((match = importRegex.exec(sourceCode)) !== null) {
+            const importPath = match[1];
+            if (importPath.startsWith('.')) {
+                let resolvedPath = path.resolve(path.dirname(filePath), importPath);
                 
-                if (!sourceFile) {
-                    throw new Error(`Could not load source file: ${absolutePath}`);
-                }
-
-                // Check for errors
-                const diagnostics = ts.getPreEmitDiagnostics(program, sourceFile);
-                if (diagnostics.length > 0) {
-                    const errors = diagnostics.map(diagnostic => {
-                        const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n');
-                        if (diagnostic.file && diagnostic.start !== undefined) {
-                            const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-                            return `${path.relative(process.cwd(), diagnostic.file.fileName)}:${line + 1}:${character + 1} - ${message}`;
+                // Try to resolve with extensions
+                if (!fs.existsSync(resolvedPath)) {
+                    for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
+                        const withExt = resolvedPath + ext;
+                        if (fs.existsSync(withExt)) {
+                            resolvedPath = withExt;
+                            break;
                         }
-                        return message;
-                    });
-                    
-                    loggerManager.printLine(`TypeScript compilation errors:\n${errors.join('\n')}`, 'error');
-                    if (!this.options.quiet) {
-                        process.exit(1);
                     }
                 }
+                
+                // Try index files
+                if (!fs.existsSync(resolvedPath)) {
+                    for (const ext of ['.ts', '.tsx', '.js', '.jsx']) {
+                        const indexPath = path.join(resolvedPath, 'index' + ext);
+                        if (fs.existsSync(indexPath)) {
+                            resolvedPath = indexPath;
+                            break;
+                        }
+                    }
+                }
+                
+                if (fs.existsSync(resolvedPath)) {
+                    dependencies.push(resolvedPath);
+                }
+            }
+        }
 
-                result = ts.transpileModule(sourceCode, {
-                    compilerOptions: this.tsCompilerOptions,
-                    fileName: absolutePath,
-                    reportDiagnostics: true
-                });
+        return dependencies;
+    }
+
+    private compileModule(filePath: string, forceRecompile: boolean = false): ModuleInfo {
+        const absolutePath = path.resolve(filePath);
+        
+        try {
+            const sourceCode = fs.readFileSync(absolutePath, 'utf8');
+            const hash = this.createHash(sourceCode);
+            const cached = this.moduleCache.get(absolutePath);
+            
+            // Check if we can use cached version
+            if (!forceRecompile && cached && cached.hash === hash) {
+                return cached;
             }
 
-            const compiled: CompiledModule = {
+            const dependencies = this.extractDependencies(sourceCode, absolutePath);
+            
+            // Fast transpile without type checking for development
+            const result = ts.transpileModule(sourceCode, {
+                compilerOptions: this.tsCompilerOptions,
+                fileName: absolutePath,
+                reportDiagnostics: false // Skip diagnostics for speed
+            });
+
+            const moduleInfo: ModuleInfo = {
                 code: result.outputText,
                 map: result.sourceMapText,
+                hash,
+                timestamp: Date.now(),
                 dependencies
             };
 
-            this.moduleCache.set(absolutePath, compiled);
-            return compiled;
+            this.moduleCache.set(absolutePath, moduleInfo);
+            
+            if (this.options.verbose) {
+                loggerManager.printLine(`Compiled ${path.relative(process.cwd(), filePath)}`, 'info');
+            }
+
+            return moduleInfo;
 
         } catch (error) {
-            loggerManager.printLine(`Compilation error in ${filePath}: ${(error as Error).message}`, 'error');
+            loggerManager.printLine(`Compilation error: ${(error as Error).message}`, 'error');
             throw error;
         }
     }
 
-    private createTempFile(compiled: CompiledModule, originalPath: string): string {
-        const tempDir = path.join(process.cwd(), '.neex-temp');
-        if (!fs.existsSync(tempDir)) {
-            fs.mkdirSync(tempDir, { recursive: true });
-        }
-
-        const tempFile = path.join(tempDir, `${path.basename(originalPath, path.extname(originalPath))}-${Date.now()}.js`);
+    private invalidateModuleCache(filePath: string): void {
+        const absolutePath = path.resolve(filePath);
         
-        let code = compiled.code;
+        // Remove the file itself
+        this.moduleCache.delete(absolutePath);
         
-        // Handle source maps
-        if (compiled.map && this.options.sourceMaps) {
-            const mapFile = tempFile + '.map';
-            fs.writeFileSync(mapFile, compiled.map);
-            code += `\n//# sourceMappingURL=${path.basename(mapFile)}`;
+        // Remove any modules that depend on this file
+        const toRemove: string[] = [];
+        for (const [cachedPath, info] of this.moduleCache.entries()) {
+            if (info.dependencies.includes(absolutePath)) {
+                toRemove.push(cachedPath);
+            }
         }
-
-        fs.writeFileSync(tempFile, code);
-        return tempFile;
+        
+        for (const pathToRemove of toRemove) {
+            this.moduleCache.delete(pathToRemove);
+        }
+        
+        if (this.options.verbose && toRemove.length > 0) {
+            loggerManager.printLine(`Invalidated ${toRemove.length + 1} modules`, 'info');
+        }
     }
 
-    private cleanupTempFiles(): void {
-        const tempDir = path.join(process.cwd(), '.neex-temp');
-        if (fs.existsSync(tempDir)) {
+    private createExecutableFile(): string {
+        // Always force recompile the main file
+        const mainModule = this.compileModule(this.options.file, true);
+        
+        // Create a unique temp file
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substr(2, 9);
+        const tempFile = path.join(this.tempDir, `main-${timestamp}-${random}.js`);
+        
+        let code = mainModule.code;
+        
+        // Add source map support
+        if (mainModule.map && this.options.sourceMaps) {
+            const mapFile = tempFile + '.map';
+            fs.writeFileSync(mapFile, mainModule.map);
+            code += `\n//# sourceMappingURL=${path.basename(mapFile)}`;
+        }
+        
+        fs.writeFileSync(tempFile, code);
+        
+        // Clean up old temp file
+        if (this.currentTempFile && fs.existsSync(this.currentTempFile)) {
             try {
-                fs.rmSync(tempDir, { recursive: true, force: true });
+                fs.unlinkSync(this.currentTempFile);
+                const mapFile = this.currentTempFile + '.map';
+                if (fs.existsSync(mapFile)) {
+                    fs.unlinkSync(mapFile);
+                }
             } catch (error) {
                 // Ignore cleanup errors
             }
         }
+        
+        this.currentTempFile = tempFile;
+        return tempFile;
     }
 
     private async getExecuteCommand(): Promise<{ command: string; args: string[] }> {
         if (this.options.execCommand) {
             const parts = this.options.execCommand.split(' ');
-            return { command: parts[0], args: [...parts.slice(1)] };
+            return { command: parts[0], args: parts.slice(1) };
         }
 
-        // Compile TypeScript file
-        const compiled = this.compileTypeScript(this.options.file);
-        const tempFile = this.createTempFile(compiled, this.options.file);
-
-        const args = [...this.options.nodeArgs, tempFile];
+        const executableFile = this.createExecutableFile();
+        const args = [...this.options.nodeArgs, executableFile];
         
-        if (this.options.inspect) {
-            args.unshift('--inspect');
-        }
+        // Add Node.js flags
+        if (this.options.inspect) args.unshift('--inspect');
+        if (this.options.inspectBrk) args.unshift('--inspect-brk');
+        if (this.options.sourceMaps) args.unshift('--enable-source-maps');
         
-        if (this.options.inspectBrk) {
-            args.unshift('--inspect-brk');
-        }
-
-        // Enable source map support
-        if (this.options.sourceMaps) {
-            args.unshift('--enable-source-maps');
-        }
-
         return { command: 'node', args };
     }
 
     private clearConsole(): void {
         if (this.options.clearConsole && process.stdout.isTTY) {
-            process.stdout.write('\x1b[2J\x1b[0f');
+            process.stdout.write('\x1Bc'); // Clear screen and scrollback
         }
     }
 
     private async startProcess(): Promise<void> {
-        if (this.process) {
-            return;
-        }
+        if (this.process) return;
 
         this.loadEnvFile();
         
         try {
             const { command, args } = await this.getExecuteCommand();
             
-            if (this.options.verbose) {
-                loggerManager.printLine(`Executing: ${command} ${args.join(' ')}`, 'info');
-            }
-
             this.process = spawn(command, args, {
                 stdio: ['ignore', 'pipe', 'pipe'],
-                shell: false,
                 env: {
                     ...process.env,
                     NODE_ENV: process.env.NODE_ENV || 'development',
                     FORCE_COLOR: this.options.color ? '1' : '0',
-                    TS_NODE_DEV: '1',
-                    NEEX_DEV: '1'
+                    NODE_OPTIONS: '--max-old-space-size=4096', // Prevent memory issues
                 },
-                detached: true
+                detached: false // Keep attached for better cleanup
             });
 
             this.startTime = new Date();
             this.restartCount++;
 
-            if (!this.options.quiet) {
-                const timestamp = new Date().toLocaleTimeString();
-                loggerManager.printLine(
-                    `${chalk.green(figures.play)} Started ${chalk.cyan(path.relative(process.cwd(), this.options.file))} ${chalk.dim(`(${timestamp})`)}`,
-                    'info'
-                );
-            }
-
+            // Handle stdout/stderr
             this.process.stdout?.on('data', (data) => {
-                if (!this.options.quiet) {
-                    process.stdout.write(data);
-                }
+                process.stdout.write(data);
             });
 
             this.process.stderr?.on('data', (data) => {
-                if (!this.options.quiet) {
-                    process.stderr.write(data);
-                }
+                process.stderr.write(data);
             });
 
             this.process.on('error', (error) => {
@@ -345,43 +356,30 @@ export class DevManager {
                 if (this.process) {
                     this.process = null;
                     
-                    if (!this.isRestarting) {
-                        if (code !== 0) {
-                            const duration = this.startTime ? Date.now() - this.startTime.getTime() : 0;
-                            loggerManager.printLine(
-                                `${chalk.red(figures.cross)} Process exited with code ${code} after ${duration}ms`,
-                                'error'
-                            );
-                        }
+                    if (!this.isRestarting && code !== 0) {
+                        const duration = this.startTime ? Date.now() - this.startTime.getTime() : 0;
+                        loggerManager.printLine(
+                            `${chalk.red('✖')} Process exited with code ${code} (${duration}ms)`,
+                            'error'
+                        );
                     }
                 }
             });
 
         } catch (error) {
-            loggerManager.printLine(`Failed to start process: ${(error as Error).message}`, 'error');
+            loggerManager.printLine(`Failed to start: ${(error as Error).message}`, 'error');
             throw error;
         }
     }
 
     private async stopProcess(): Promise<void> {
-        if (!this.process) {
-            return;
-        }
+        if (!this.process) return;
 
         return new Promise<void>((resolve) => {
-            if (!this.process) {
-                resolve();
-                return;
-            }
-
-            const proc = this.process;
+            const proc = this.process!;
             this.process = null;
 
             const cleanup = () => {
-                if (!this.options.quiet) {
-                    loggerManager.printLine(`${chalk.yellow(figures.square)} Stopped process`, 'info');
-                }
-                this.cleanupTempFiles();
                 resolve();
             };
 
@@ -389,65 +387,36 @@ export class DevManager {
             proc.on('error', cleanup);
 
             try {
-                if (proc.pid) {
-                    // Kill process group
-                    process.kill(-proc.pid, 'SIGTERM');
-                    
-                    // Fallback after timeout
-                    setTimeout(() => {
-                        if (proc.pid && !proc.killed) {
-                            try {
-                                process.kill(-proc.pid, 'SIGKILL');
-                            } catch (e) {
-                                // Ignore
-                            }
-                        }
-                    }, 3000);
-                }
+                proc.kill('SIGTERM');
+                
+                // Force kill after timeout
+                setTimeout(() => {
+                    if (!proc.killed) {
+                        proc.kill('SIGKILL');
+                    }
+                }, 1000);
             } catch (error) {
-                // Process might already be dead
                 cleanup();
             }
         });
     }
 
-    private invalidateCache(filePath: string): void {
-        const absolutePath = path.resolve(filePath);
-        
-        // Remove from cache
-        this.moduleCache.delete(absolutePath);
-        
-        // Remove dependent modules from cache
-        for (const [cachedPath, module] of this.moduleCache.entries()) {
-            if (module.dependencies.has(absolutePath)) {
-                this.moduleCache.delete(cachedPath);
-            }
-        }
-    }
-
     private async restart(): Promise<void> {
-        if (this.isRestarting) {
-            return;
-        }
+        if (this.isRestarting) return;
 
         this.isRestarting = true;
         
-        if (this.options.clearConsole) {
-            this.clearConsole();
-        }
-
+        // Clear console immediately for better UX
+        this.clearConsole();
+        
         if (!this.options.quiet) {
-            loggerManager.printLine(`${chalk.yellow(figures.arrowRight)} Restarting due to changes...`, 'info');
+            loggerManager.printLine(`${chalk.yellow('⟳')} Restarting...`, 'info');
         }
 
-        // Clear module cache
-        this.moduleCache.clear();
-
+        // Stop current process
         await this.stopProcess();
         
-        // Small delay to ensure cleanup
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        // Start new process
         await this.startProcess();
         
         this.isRestarting = false;
@@ -455,15 +424,19 @@ export class DevManager {
 
     private setupWatcher(): void {
         const watchPatterns = this.options.watch;
+        
+        // Optimized ignore patterns
         const ignored = [
-            '**/node_modules/**',
-            '**/.git/**',
-            '**/dist/**',
-            '**/build/**',
-            '**/.neex-temp/**',
+            'node_modules/**',
+            '.git/**',
+            'dist/**',
+            'build/**',
+            '.neex-temp/**',
             '**/*.log',
             '**/*.d.ts',
-            ...this.options.ignore.map(pattern => `**/${pattern}/**`)
+            '**/*.map',
+            '**/*.tsbuildinfo',
+            ...this.options.ignore
         ];
 
         this.watcher = watch(watchPatterns, {
@@ -471,80 +444,78 @@ export class DevManager {
             ignoreInitial: true,
             followSymlinks: false,
             usePolling: false,
-            atomic: 200,        // سریع‌تر تشخیص تغییرات
-            awaitWriteFinish: { // منتظر تمام شدن نوشتن فایل
+            atomic: 50, // Very fast detection
+            awaitWriteFinish: {
                 stabilityThreshold: 100,
                 pollInterval: 50
             }
         });
 
         this.watcher.on('change', (filePath: string) => {
-            this.invalidateCache(filePath);
+            this.invalidateModuleCache(filePath);
+            
             if (this.options.verbose) {
-                loggerManager.printLine(`File changed: ${path.relative(process.cwd(), filePath)}`, 'info');
+                loggerManager.printLine(`${chalk.blue('●')} ${path.relative(process.cwd(), filePath)}`, 'info');
             }
+            
             this.debouncedRestart();
         });
 
         this.watcher.on('add', (filePath: string) => {
             if (this.options.verbose) {
-                loggerManager.printLine(`File added: ${path.relative(process.cwd(), filePath)}`, 'info');
+                loggerManager.printLine(`${chalk.green('+')} ${path.relative(process.cwd(), filePath)}`, 'info');
             }
             this.debouncedRestart();
         });
 
         this.watcher.on('unlink', (filePath: string) => {
-            this.invalidateCache(filePath);
+            this.invalidateModuleCache(filePath);
+            
             if (this.options.verbose) {
-                loggerManager.printLine(`File removed: ${path.relative(process.cwd(), filePath)}`, 'info');
+                loggerManager.printLine(`${chalk.red('-')} ${path.relative(process.cwd(), filePath)}`, 'info');
             }
+            
             this.debouncedRestart();
         });
 
         this.watcher.on('error', (error: Error) => {
             loggerManager.printLine(`Watcher error: ${error.message}`, 'error');
         });
-
-        if (this.options.verbose) {
-            loggerManager.printLine(`Watching: ${watchPatterns.join(', ')}`, 'info');
-            loggerManager.printLine(`Ignoring: ${ignored.join(', ')}`, 'info');
-        }
     }
 
     public async start(): Promise<void> {
-        // Check if target file exists
         if (!fs.existsSync(this.options.file)) {
             throw new Error(`Target file not found: ${this.options.file}`);
         }
 
-        // Validate TypeScript file
         const ext = path.extname(this.options.file);
         if (!['.ts', '.tsx', '.js', '.jsx'].includes(ext)) {
             throw new Error(`Unsupported file extension: ${ext}`);
         }
 
-        loggerManager.printLine(`${chalk.blue(figures.info)} Starting TypeScript development server...`, 'info');
-        
-        // Show configuration in verbose mode
-        if (this.options.verbose) {
-            loggerManager.printLine(`Target file: ${this.options.file}`, 'info');
-            loggerManager.printLine(`Watch patterns: ${this.options.watch.join(', ')}`, 'info');
-            loggerManager.printLine(`Restart delay: ${this.options.delay}ms`, 'info');
-            loggerManager.printLine(`Transpile only: ${this.options.transpileOnly}`, 'info');
-            loggerManager.printLine(`Source maps: ${this.options.sourceMaps}`, 'info');
+        // Clear any existing cache
+        this.moduleCache.clear();
+        this.setupTempDir();
+
+        if (!this.options.quiet) {
+            loggerManager.printLine(`${chalk.green(figures.play)} Starting TypeScript development server...`, 'info');
         }
 
         this.setupWatcher();
         await this.startProcess();
 
-        loggerManager.printLine(
-            `${chalk.green(figures.tick)} TypeScript development server started. Watching for changes...`,
-            'info'
-        );
+        if (!this.options.quiet) {
+            loggerManager.printLine(`${chalk.green('✓')} Watching for changes...`, 'info');
+        }
     }
 
     public async stop(): Promise<void> {
-        loggerManager.printLine(`${chalk.yellow(figures.warning)} Stopping development server...`, 'info');
+        if (this.isShuttingDown) return;
+        this.isShuttingDown = true;
+
+        if (!this.options.quiet) {
+            loggerManager.printLine(`${chalk.yellow('⏹')} Stopping dev server...`, 'info');
+        }
         
         if (this.watcher) {
             await this.watcher.close();
@@ -553,11 +524,15 @@ export class DevManager {
 
         await this.stopProcess();
         
-        if (this.restartCount > 0) {
-            loggerManager.printLine(
-                `${chalk.blue(figures.info)} Development server stopped after ${this.restartCount} restart(s)`,
-                'info'
-            );
+        // Cleanup temp files
+        if (fs.existsSync(this.tempDir)) {
+            try {
+                fs.rmSync(this.tempDir, { recursive: true, force: true });
+            } catch (error) {
+                // Ignore cleanup errors
+            }
         }
+        
+        this.moduleCache.clear();
     }
 }

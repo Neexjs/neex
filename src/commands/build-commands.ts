@@ -28,7 +28,7 @@ export function addBuildCommands(program: Command): { cleanupBuild: () => void }
                 const sourceDir = source || 'src';
                 
                 if (!options.quiet) {
-                    loggerManager.printLine(`${chalk.blue(figures.info)} Building TypeScript project from ${chalk.cyan(sourceDir)}`, 'info');
+                    loggerManager.printLine(`${chalk.green(figures.play)} Building TypeScript project from ${chalk.cyan(sourceDir)}`, 'info');
                 }
 
                 buildManager = new BuildManager({
@@ -48,6 +48,22 @@ export function addBuildCommands(program: Command): { cleanupBuild: () => void }
                     color: options.color,
                     analyze: options.analyze
                 });
+
+                // --- Signal Handlers for Build ---
+                const cleanupAndExit = (signal: string) => {
+                    if (buildManager) {
+                        loggerManager.printLine(`\n${chalk.yellow('⏹')} Received ${signal}, shutting down...`, 'info');
+                        buildManager.stop().then(() => process.exit(0));
+                    } else {
+                        process.exit(0);
+                    }
+                };
+
+                const sigintHandler = () => cleanupAndExit('SIGINT');
+                const sigtermHandler = () => cleanupAndExit('SIGTERM');
+
+                process.on('SIGINT', sigintHandler);
+                process.on('SIGTERM', sigtermHandler);
 
                 await buildManager.build();
                 
@@ -108,40 +124,8 @@ export function addBuildCommands(program: Command): { cleanupBuild: () => void }
             }
         });
 
-    // Cleanup function
-    const cleanupBuild = async () => {
-        if (buildManager) {
-            try {
-                await buildManager.stop();
-                buildManager = null;
-            } catch (error) {
-                // Ignore cleanup errors
-            }
-        }
-    };
-
-    // Handle process termination
-    const handleExit = (signal: string) => {
-        if (buildManager) {
-            loggerManager.printLine(`\n${chalk.yellow(figures.warning)} Received ${signal}, stopping build process...`, 'info');
-            cleanupBuild().then(() => {
-                process.exit(0);
-            }).catch(() => {
-                process.exit(1);
-            });
-        } else {
-            process.exit(0);
-        }
-    };
-
-    // Register signal handlers
-    process.on('SIGINT', () => handleExit('SIGINT'));
-    process.on('SIGTERM', () => handleExit('SIGTERM'));
-    process.on('exit', () => {
-        if (buildManager) {
-            cleanupBuild();
-        }
-    });
+    // Cleanup function is no longer needed here as it's handled within the command
+    const cleanupBuild = async () => {};
 
     return { cleanupBuild };
 }

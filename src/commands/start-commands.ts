@@ -140,6 +140,22 @@ export function addStartCommands(program: Command): { cleanupStart: () => void }
                     nodeArgs: options.nodeArgs
                 });
 
+                // --- Signal Handlers for Start ---
+                const cleanupAndExit = (signal: string) => {
+                    if (startManager) {
+                        loggerManager.printLine(`\n${chalk.yellow('⏹')} Received ${signal}, shutting down...`, 'info');
+                        startManager.stop().then(() => process.exit(0));
+                    } else {
+                        process.exit(0);
+                    }
+                };
+
+                const sigintHandler = () => cleanupAndExit('SIGINT');
+                const sigtermHandler = () => cleanupAndExit('SIGTERM');
+
+                process.on('SIGINT', sigintHandler);
+                process.on('SIGTERM', sigtermHandler);
+
                 await startManager.start();
                 
             } catch (error: unknown) {
@@ -152,51 +168,8 @@ export function addStartCommands(program: Command): { cleanupStart: () => void }
             }
         });
 
-    // Cleanup function
-    const cleanupStart = async () => {
-        if (startManager) {
-            try {
-                await startManager.stop();
-                startManager = null;
-            } catch (error) {
-                if (process.env.VERBOSE) {
-                    console.error('Cleanup error:', error);
-                }
-            }
-        }
-    };
-
-    // Signal handling
-    const handleExit = (signal: string) => {
-        if (startManager) {
-            console.log(`\n${chalk.yellow(figures.warning)} Received ${signal}, shutting down gracefully...`);
-            cleanupStart().then(() => {
-                process.exit(0);
-            }).catch(() => {
-                process.exit(1);
-            });
-        } else {
-            process.exit(0);
-        }
-    };
-
-    process.on('SIGINT', () => handleExit('SIGINT'));
-    process.on('SIGTERM', () => handleExit('SIGTERM'));
-    process.on('SIGUSR2', () => handleExit('SIGUSR2'));
-
-    process.on('uncaughtException', (error) => {
-        console.error(`${chalk.red(figures.cross)} Uncaught Exception:`, error);
-        cleanupStart().then(() => {
-            process.exit(1);
-        });
-    });
-
-    process.on('unhandledRejection', (reason, promise) => {
-        console.error(`${chalk.red(figures.cross)} Unhandled Rejection at:`, promise, 'reason:', reason);
-        cleanupStart().then(() => {
-            process.exit(1);
-        });
-    });
+    // Cleanup function is no longer needed here as it's handled within the command
+    const cleanupStart = async () => {};
 
     return { cleanupStart };
 }

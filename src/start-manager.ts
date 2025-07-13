@@ -533,7 +533,7 @@ export class StartManager {
         if (this.isShuttingDown) return;
         
         this.isShuttingDown = true;
-        this.log('Shutting down gracefully...');
+        this.log(`${chalk.yellow('⏹')} Shutting down gracefully...`);
         
         if (this.watcher) {
             await this.watcher.close();
@@ -571,6 +571,5 @@ export class StartManager {
         await Promise.allSettled(shutdownPromises);
         
         this.workers.clear();
-        this.log('Server stopped');
     }
 }
