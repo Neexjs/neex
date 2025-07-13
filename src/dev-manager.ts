@@ -8,6 +8,19 @@ import path from 'path';
 import fs from 'fs';
 import { debounce } from 'lodash';
 
+async function isCommandAvailable(command: string): Promise<boolean> {
+    try {
+        const { exec } = await import('child_process');
+        return new Promise((resolve) => {
+            exec(`command -v ${command}`, (error) => {
+                resolve(!error);
+            });
+        });
+    } catch (e) {
+        return false;
+    }
+}
+
 export interface DevOptions {
     file: string;
     watch: string[];
@@ -63,13 +76,18 @@ export class DevManager {
         }
     }
 
-    private getExecuteCommand(): { command: string; args: string[] } {
+    private async getExecuteCommand(): Promise<{ command: string; args: string[] }> {
         if (this.options.execCommand) {
             const parts = this.options.execCommand.split(' ');
             return { command: parts[0], args: [...parts.slice(1), this.options.file] };
         }
 
         // Default to tsx for TypeScript files
+        const tsxExists = await isCommandAvailable('tsx');
+        if (!tsxExists) {
+            throw new Error('`tsx` command not found. Please install `tsx`');
+        }
+
         const args = [this.options.file];
         
         if (this.options.inspect) {
@@ -96,7 +114,7 @@ export class DevManager {
 
         this.loadEnvFile();
         
-        const { command, args } = this.getExecuteCommand();
+        const { command, args } = await this.getExecuteCommand();
         
         if (this.options.verbose) {
             loggerManager.printLine(`Executing: ${command} ${args.join(' ')}`, 'info');
