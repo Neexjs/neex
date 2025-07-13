@@ -1,4 +1,4 @@
-// src/build-manager.ts - Build manager for TypeScript projects using tsx
+// src/build-manager.ts - Build manager for TypeScript projects using tsc
 import { spawn, ChildProcess } from 'child_process';
 import { watch } from 'chokidar';
 import { loggerManager } from './logger-manager.js';
@@ -97,56 +97,31 @@ export class BuildManager {
         }
     }
 
-    private getBuildCommand(): { command: string; args: string[] } {
-        if (this.options.bundle) {
-            // Use tsx for bundling
-            const args = [
-                'build',
-                this.options.source,
-                '--out-dir',
-                this.options.output,
-                '--target',
-                this.options.target
-            ];
+    private getTscCommand(): { command: string; args: string[] } {
+        const args = [
+            '--project',
+            this.options.tsconfig,
+            '--outDir',
+            this.options.output,
+            '--target',
+            this.options.target,
+            '--declaration'
+        ];
 
-            if (this.options.minify) {
-                args.push('--minify');
-            }
-
-            if (this.options.sourcemap) {
-                args.push('--sourcemap');
-            }
-
-            if (this.options.format === 'esm') {
-                args.push('--format', 'esm');
-            }
-
-            if (this.options.external.length > 0) {
-                args.push('--external', this.options.external.join(','));
-            }
-
-            return { command: 'tsx', args };
-        } else {
-            // Use TypeScript compiler directly
-            const args = [
-                '--project',
-                this.options.tsconfig,
-                '--outDir',
-                this.options.output,
-                '--target',
-                this.options.target
-            ];
-
-            if (this.options.sourcemap) {
-                args.push('--sourceMap');
-            }
-
-            if (this.options.format === 'esm') {
-                args.push('--module', 'es2020');
-            }
-
-            return { command: 'tsc', args };
+        if (this.options.sourcemap) {
+            args.push('--sourceMap');
         }
+
+        if (this.options.format === 'esm') {
+            args.push('--module', 'es2020', '--moduleResolution', 'node');
+        } else {
+            args.push('--module', 'commonjs');
+        }
+
+        // Always include these for better compatibility
+        args.push('--esModuleInterop', '--allowSyntheticDefaultImports', '--strict');
+
+        return { command: 'tsc', args };
     }
 
     private async runBuild(): Promise<void> {
@@ -167,7 +142,7 @@ export class BuildManager {
         try {
             await this.ensureOutputDirectory();
             
-            const { command, args } = this.getBuildCommand();
+            const { command, args } = this.getTscCommand();
             
             if (this.options.verbose) {
                 loggerManager.printLine(`Executing: ${command} ${args.join(' ')}`, 'info');
@@ -175,27 +150,24 @@ export class BuildManager {
 
             return new Promise<void>((resolve, reject) => {
                 this.buildProcess = spawn(command, args, {
-                    stdio: this.options.verbose ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'ignore', 'pipe'],
+                    stdio: ['ignore', 'pipe', 'pipe'], // Capture stdout and stderr
                     shell: false,
                     env: {
                         ...process.env,
-                        FORCE_COLOR: this.options.color ? '1' : '0'
+                        FORCE_COLOR: '0' // Disable TSC colors to avoid log pollution
                     }
                 });
 
+                let stdout = '';
                 let stderr = '';
 
-                if (this.options.verbose) {
-                    this.buildProcess.stdout?.on('data', (data) => {
-                        process.stdout.write(data);
-                    });
-                }
+                // Capture all output but don't display TSC logs
+                this.buildProcess.stdout?.on('data', (data) => {
+                    stdout += data.toString();
+                });
 
                 this.buildProcess.stderr?.on('data', (data) => {
                     stderr += data.toString();
-                    if (this.options.verbose) {
-                        process.stderr.write(data);
-                    }
                 });
 
                 this.buildProcess.on('error', (error) => {
@@ -227,11 +199,14 @@ export class BuildManager {
                         
                         resolve();
                     } else {
-                        const error = new Error(`Build failed with code ${code}`);
-                        if (stderr) {
-                            loggerManager.printLine(`Build errors:\n${stderr}`, 'error');
+                        // Only show meaningful errors, filter out TSC verbosity
+                        const meaningfulErrors = this.filterTscErrors(stderr);
+                        if (meaningfulErrors) {
+                            loggerManager.printLine(`Build failed:\n${meaningfulErrors}`, 'error');
+                        } else {
+                            loggerManager.printLine(`Build failed with code ${code}`, 'error');
                         }
-                        reject(error);
+                        reject(new Error(`Build failed with code ${code}`));
                     }
                 });
             });
@@ -242,16 +217,32 @@ export class BuildManager {
         }
     }
 
+    private filterTscErrors(stderr: string): string {
+        if (!stderr) return '';
+        
+        const lines = stderr.split('\n');
+        const meaningfulLines = lines.filter(line => {
+            const trimmed = line.trim();
+            // Filter out TSC verbose output, keep only actual errors
+            return trimmed && 
+                   !trimmed.includes('message TS') && 
+                   !trimmed.includes('Found 0 errors') &&
+                   !trimmed.match(/^\s*\d+\s*$/) && // Filter line numbers
+                   !trimmed.includes('Watching for file changes');
+        });
+        
+        return meaningfulLines.join('\n').trim();
+    }
+
     private async analyzeBuild(): Promise<void> {
         try {
-            const stats = await fs.stat(this.options.output);
             const files = await fs.readdir(this.options.output, { withFileTypes: true });
             
             let totalSize = 0;
             const fileStats: { name: string; size: number }[] = [];
             
             for (const file of files) {
-                if (file.isFile()) {
+                if (file.isFile() && (file.name.endsWith('.js') || file.name.endsWith('.d.ts'))) {
                     const filePath = path.join(this.options.output, file.name);
                     const stat = await fs.stat(filePath);
                     totalSize += stat.size;
@@ -261,12 +252,14 @@ export class BuildManager {
             
             fileStats.sort((a, b) => b.size - a.size);
             
-            loggerManager.printLine(`${chalk.blue(figures.info)} Bundle Analysis:`, 'info');
+            loggerManager.printLine(`${chalk.blue(figures.info)} Build Analysis:`, 'info');
             loggerManager.printLine(`Total size: ${chalk.cyan(this.formatBytes(totalSize))}`, 'info');
-            loggerManager.printLine(`Files: ${files.length}`, 'info');
+            loggerManager.printLine(`Generated files: ${fileStats.length}`, 'info');
             
-            if (this.options.verbose) {
-                fileStats.slice(0, 10).forEach(file => {
+            if (this.options.verbose && fileStats.length > 0) {
+                const topFiles = fileStats.slice(0, 5);
+                loggerManager.printLine('Largest files:', 'info');
+                topFiles.forEach(file => {
                     loggerManager.printLine(`  ${file.name}: ${this.formatBytes(file.size)}`, 'info');
                 });
             }
@@ -292,7 +285,7 @@ export class BuildManager {
 
             const cleanup = () => {
                 if (!this.options.quiet) {
-                    loggerManager.printLine(`${chalk.yellow(figures.square)} Stopped build process`, 'info');
+                    loggerManager.printLine(`${chalk.yellow(figures.square)} Build process stopped`, 'info');
                 }
                 resolve();
             };
@@ -314,7 +307,7 @@ export class BuildManager {
                                 // Ignore
                             }
                         }
-                    }, 5000);
+                    }, 3000);
                 }
             } catch (error) {
                 // Process might already be dead
@@ -344,12 +337,13 @@ export class BuildManager {
             ignoreInitial: true,
             followSymlinks: false,
             usePolling: false,
-            atomic: 300,
+            atomic: 200,
             ignored: [
                 '**/node_modules/**',
                 '**/.git/**',
                 `**/${this.options.output}/**`,
-                '**/*.log'
+                '**/*.log',
+                '**/*.map'
             ]
         });
 
@@ -383,7 +377,7 @@ export class BuildManager {
         }
     }
 
-    private debouncedBuild = this.debounce(this.runBuild.bind(this), 500);
+    private debouncedBuild = this.debounce(this.runBuild.bind(this), 300);
 
     private debounce(func: Function, wait: number) {
         let timeout: NodeJS.Timeout;
@@ -411,7 +405,7 @@ export class BuildManager {
             if (this.options.watch) {
                 this.setupWatcher();
                 if (!this.options.quiet) {
-                    loggerManager.printLine('Watching for file changes...', 'info');
+                    loggerManager.printLine(`${chalk.blue(figures.info)} Watching for changes...`, 'info');
                 }
             }
         } catch (error) {
@@ -423,7 +417,9 @@ export class BuildManager {
     }
 
     public async stop(): Promise<void> {
-        loggerManager.printLine(`${chalk.yellow(figures.warning)} Stopping build process...`, 'info');
+        if (!this.options.quiet) {
+            loggerManager.printLine(`${chalk.yellow(figures.warning)} Stopping build process...`, 'info');
+        }
 
         if (this.watcher) {
             await this.watcher.close();
@@ -432,7 +428,7 @@ export class BuildManager {
 
         await this.stopProcess();
 
-        if (this.buildCount > 0) {
+        if (this.buildCount > 0 && !this.options.quiet) {
             loggerManager.printLine(
                 `${chalk.blue(figures.info)} Build process stopped after ${this.buildCount} build(s)`,
                 'info'
