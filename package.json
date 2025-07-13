@@ -1,6 +1,6 @@
 {
   "name": "neex",
-  "version": "0.6.45",
+  "version": "0.6.46",
   "description": "The Modern Build System for Polyrepo-in-Monorepo Architecture",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -31,10 +31,12 @@
   "license": "MIT",
   "dependencies": {
     "chalk": "^4.1.2",
+    "chokidar": "^4.0.3",
     "commander": "^9.4.0",
     "figlet": "^1.8.1",
     "figures": "^3.2.0",
     "gradient-string": "^3.0.0",
+    "lodash": "^4.17.21",
     "npm-run-path": "^4.0.1",
     "p-map": "^4.0.0",
     "string-width": "^4.2.3"
@@ -42,6 +44,7 @@
   "devDependencies": {
     "@types/figlet": "^1.7.0",
     "@types/jest": "^29.2.3",
+    "@types/lodash": "^4.17.20",
     "@types/node": "^18.11.9",
     "jest": "^29.3.1",
     "ts-jest": "^29.0.3",
