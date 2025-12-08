@@ -118,9 +118,9 @@ export const rootPackageJsonContent = (name: string, packageManager: string) => 
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "build": "neex run build",
-    "dev": "neex run dev",
-    "typecheck": "neex run typecheck",
+    "build": "neex build",
+    "dev": "neex dev",
+    "typecheck": "neex typecheck",
     "lint": "biome lint .",
     "format": "biome format ."
   },

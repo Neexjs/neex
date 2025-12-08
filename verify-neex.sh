@@ -63,19 +63,24 @@ cd "$TEST_PROJECT_NAME"
 log "Linking local 'neex' and 'neexa' for verification..."
 # Replace "neex" and "neexa" with local paths in ROOT
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  sed -i '' 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/packages\/core"/' package.json
-  sed -i '' 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/packages\/neexa"/' package.json
+  # Root package.json uses "latest"
+  sed -i '' 's#"neex": "latest"#"neex": "file:../../packages/core"#' package.json
+  sed -i '' 's#"neex": "\^0.7.45"#"neex": "file:../../packages/core"#' package.json
+  sed -i '' 's#"neexa": "\^0.1.0"#"neexa": "file:../../packages/neexa"#' package.json
+  sed -i '' 's#"neexa": "latest"#"neexa": "file:../../packages/neexa"#' package.json
   
   # Replace in ALL apps/*/package.json files
-  find apps -name "package.json" -maxdepth 2 -exec sed -i '' 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/..\/..\/packages\/core"/' {} +
-  find apps -name "package.json" -maxdepth 2 -exec sed -i '' 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/..\/..\/packages\/neexa"/' {} +
+  find apps -name "package.json" -maxdepth 2 -exec sed -i '' 's#"neex": "\^[0-9.]*"#"neex": "file:../../../../packages/core"#' {} +
+  find apps -name "package.json" -maxdepth 2 -exec sed -i '' 's#"neexa": "\^[0-9.]*"#"neexa": "file:../../../../packages/neexa"#' {} +
 else
-  sed -i 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/packages\/core"/' package.json
-  sed -i 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/packages\/neexa"/' package.json
+  sed -i 's#"neex": "latest"#"neex": "file:../../packages/core"#' package.json
+  sed -i 's#"neex": "\^0.7.45"#"neex": "file:../../packages/core"#' package.json
+  sed -i 's#"neexa": "\^0.1.0"#"neexa": "file:../../packages/neexa"#' package.json
+  sed -i 's#"neexa": "latest"#"neexa": "file:../../packages/neexa"#' package.json
   
   # Replace in ALL apps/*/package.json files
-  find apps -name "package.json" -maxdepth 2 -exec sed -i 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/..\/..\/packages\/core"/' {} +
-  find apps -name "package.json" -maxdepth 2 -exec sed -i 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/..\/..\/packages\/neexa"/' {} +
+  find apps -name "package.json" -maxdepth 2 -exec sed -i 's#"neex": "\^[0-9.]*"#"neex": "file:../../../../packages/core"#' {} +
+  find apps -name "package.json" -maxdepth 2 -exec sed -i 's#"neexa": "\^[0-9.]*"#"neexa": "file:../../../../packages/neexa"#' {} +
 fi
 
 # 4. Static Checks
