@@ -5,6 +5,7 @@
  * - LRU Cache (in-memory)
  * - Parallel Processing (with semaphore)
  * - WASM Engine (XXHash3)
+ * - Bun-optimized file I/O (zero-copy when possible)
  */
 
 import * as fs from 'fs';
@@ -17,6 +18,33 @@ import { Semaphore } from './semaphore';
 // WASM Module State
 let wasmModule: WasmModule | null = null;
 let wasmLoadError: Error | null = null;
+
+// Check if running in Bun for optimized I/O
+const isBun = typeof Bun !== 'undefined';
+
+/**
+ * Bun-optimized file reading (zero-copy when possible)
+ * Falls back to Node.js fs.readFileSync if not in Bun
+ */
+async function readFileOptimized(filePath: string): Promise<Uint8Array> {
+  if (isBun) {
+    // Bun.file() uses memory-mapped I/O internally for large files
+    const file = Bun.file(filePath);
+    const buffer = await file.arrayBuffer();
+    return new Uint8Array(buffer);
+  }
+  // Node.js fallback
+  const data = fs.readFileSync(filePath);
+  return new Uint8Array(data);
+}
+
+/**
+ * Synchronous file read for compatibility
+ */
+function readFileSyncOptimized(filePath: string): Uint8Array {
+  const data = fs.readFileSync(filePath);
+  return new Uint8Array(data);
+}
 
 interface WasmModule {
     memory: WebAssembly.Memory;
@@ -151,6 +179,7 @@ export const Native = {
 
     /**
      * Hash a single file with caching
+     * Uses Bun-optimized I/O when available
      */
     hashFile: async (filePath: string): Promise<bigint> => {
         return hashSemaphore.run(async () => {
@@ -164,9 +193,9 @@ export const Native = {
                     return cached;
                 }
                 
-                // Read and hash file
-                const data = fs.readFileSync(filePath);
-                const hash = await hashBytesWasm(new Uint8Array(data));
+                // Read file using optimized I/O (Bun memory-mapped when available)
+                const data = await readFileOptimized(filePath);
+                const hash = await hashBytesWasm(data);
                 
                 // Store in cache
                 hashCache.set(cacheKey, hash);
@@ -256,22 +285,22 @@ export const Native = {
             return combinedHash;
         }
 
-        // Hash changed files in parallel
+        // Hash changed files in parallel using Bun-optimized I/O
         const wasm = await loadWasm();
         
         if (wasm && changedFiles.length > 0) {
             // Batch hash with WASM for maximum performance
-            const chunks: Uint8Array[] = [];
-            let totalLen = 0;
-
-            for (const file of changedFiles) {
+            // Read files in parallel using Bun-optimized I/O
+            const chunkPromises = changedFiles.map(async (file) => {
                 try {
-                    const data = fs.readFileSync(file);
-                    const chunk = new Uint8Array(data);
-                    chunks.push(chunk);
-                    totalLen += 4 + chunk.length;
-                } catch { /* skip */ }
-            }
+                    return await readFileOptimized(file);
+                } catch {
+                    return null;
+                }
+            });
+            
+            const chunks = (await Promise.all(chunkPromises)).filter((c): c is Uint8Array => c !== null);
+            let totalLen = chunks.reduce((acc, c) => acc + 4 + c.length, 0);
 
             if (totalLen > 0) {
                 const batchBuffer = new Uint8Array(totalLen);
