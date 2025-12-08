@@ -1,8 +1,6 @@
-// src/commands/index.ts - Export all commands
+// src/commands/index.ts - Export all commands (neex orchestrator only)
 export * from './run-commands';
-export * from './dev-commands';
 export * from './server-commands';
-export * from './start-commands';
-export * from './build-commands';
+export * from './cache-commands';
 export { runInit } from './init-commands';
 export { addPlugin } from './add-commands';

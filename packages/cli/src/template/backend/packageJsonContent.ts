@@ -6,13 +6,14 @@ export default (projectName: string, includePrisma: boolean = true) => `{
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "dev": "neex dev src/server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js"
+    "dev": "neexa dev src/server.ts",
+    "build": "neexa build src/server.ts",
+    "start": "neexa start dist/server.js"
   },
   "dependencies": {
     "express": "^5.1.0",
     "neex": "^${neexVersion}",
+    "neexa": "^0.1.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.0",
     "chalk": "^5.6.2"${includePrisma ? ',\n    "@prisma/client": "^6.11.1"' : ''}

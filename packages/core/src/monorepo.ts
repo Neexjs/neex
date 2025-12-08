@@ -135,10 +135,14 @@ export class MonorepoManager {
 
 
   private async getPackageManager(): Promise<string> {
-    if (await Bun.file(path.join(this.rootDir, 'pnpm-lock.yaml')).exists()) return 'pnpm';
-    if (await Bun.file(path.join(this.rootDir, 'yarn.lock')).exists()) return 'yarn';
-    if (await Bun.file(path.join(this.rootDir, 'bun.lockb')).exists()) return 'bun';
-    if (await Bun.file(path.join(this.rootDir, 'bun.lock')).exists()) return 'bun';
+    const fs = require('fs');
+    
+    if (fs.existsSync(path.join(this.rootDir, 'pnpm-lock.yaml'))) return 'pnpm';
+    if (fs.existsSync(path.join(this.rootDir, 'yarn.lock'))) return 'yarn';
+    if (fs.existsSync(path.join(this.rootDir, 'bun.lockb'))) return 'bun';
+    if (fs.existsSync(path.join(this.rootDir, 'bun.lock'))) return 'bun';
+    if (fs.existsSync(path.join(this.rootDir, 'package-lock.json'))) return 'npm';
+    
     return 'npm';
   }
 

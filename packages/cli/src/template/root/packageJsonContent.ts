@@ -64,31 +64,28 @@ const packageJsonContent = (
   };
 
   // Build script with correct order
-  const buildScript = `neex s prisma:generate prisma:migrate build:client build:server`;
+  const buildScript = `neex build`;
 
   return `{
   "name": "${projectName}",
   "version": "0.1.0",
   "private": true,
   "workspaces": [
-    "apps/client",
-    "apps/server"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
-    "dev": "neex p dev:client dev:server",
-    "dev:client": "${getDevCommand('client')}",
-    "dev:server": "${getDevCommand('server')}",
-    "build": "${buildScript}",
-    "build:client": "${getBuildCommand('client')}",
-    "build:server": "${getBuildCommand('server')}",
-    "start": "neex p start:client start:server",
-    "start:client": "${getStartCommand('client')}",
-    "start:server": "${getStartCommand('server')}",
+    "dev": "neex dev",
+    "build": "neex build",
+    "lint": "neex lint",
+    "test": "neex test",
+    "typecheck": "neex typecheck",
     "prisma:generate": "${getPrismaCommand('generate')}",
     "prisma:migrate": "${getPrismaCommand('db push')}"
   },
   "devDependencies": {
     "neex": "^0.7.45",
+    "neexa": "^0.1.0",
     "cross-env": "^7.0.3"
   }
 }`;

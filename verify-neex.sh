@@ -37,6 +37,10 @@ log "Building Core..."
 cd "$PROJECT_ROOT/packages/core"
 bun install || error "bun install for core failed"
 bun run build || error "Core build failed"
+log "Building Neexa..."
+cd "$PROJECT_ROOT/packages/neexa"
+bun install || error "bun install for neexa failed"
+bun run build || error "Neexa build failed"
 cd "$PROJECT_ROOT" # Return to project root
 
 # 2. Clean previous test
@@ -56,12 +60,22 @@ node "$CLI_DIR/dist/index.js" "$TEST_PROJECT_NAME" --type express-next --bun --d
 
 cd "$TEST_PROJECT_NAME"
 
-log "Linking local 'neex' core for verification..."
-# Replace "neex": "latest" with local path to ensure we test the local runner
+log "Linking local 'neex' and 'neexa' for verification..."
+# Replace "neex" and "neexa" with local paths in ROOT
 if [[ "$OSTYPE" == "darwin"* ]]; then
-  sed -i '' 's/"neex": "latest"/"neex": "file:..\/..\/packages\/core"/' package.json
+  sed -i '' 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/packages\/core"/' package.json
+  sed -i '' 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/packages\/neexa"/' package.json
+  
+  # Replace in ALL apps/*/package.json files
+  find apps -name "package.json" -maxdepth 2 -exec sed -i '' 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/..\/..\/packages\/core"/' {} +
+  find apps -name "package.json" -maxdepth 2 -exec sed -i '' 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/..\/..\/packages\/neexa"/' {} +
 else
-  sed -i 's/"neex": "latest"/"neex": "file:..\/..\/packages\/core"/' package.json
+  sed -i 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/packages\/core"/' package.json
+  sed -i 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/packages\/neexa"/' package.json
+  
+  # Replace in ALL apps/*/package.json files
+  find apps -name "package.json" -maxdepth 2 -exec sed -i 's/"neex": "\^0.7.45"/"neex": "file:..\/..\/..\/..\/packages\/core"/' {} +
+  find apps -name "package.json" -maxdepth 2 -exec sed -i 's/"neexa": "\^0.1.0"/"neexa": "file:..\/..\/..\/..\/packages\/neexa"/' {} +
 fi
 
 # 4. Static Checks
@@ -92,8 +106,6 @@ log "Installing dependencies (bun install)..."
 bun install || error "bun install failed"
 echo "[VERIFY] Debugging Neex installation..."
 ls -l node_modules/neex/dist/src
-cat node_modules/neex/dist/src/loader.js
-cat node_modules/neex/dist/src/native.js
 
 echo "[VERIFY] Running neex build..."
 # neex is in devDependencies, so we should be able to run it.

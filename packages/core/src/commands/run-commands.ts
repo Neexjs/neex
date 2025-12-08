@@ -6,6 +6,38 @@ import { MonorepoManager } from '../monorepo';
 import chalk from 'chalk';
 import figures from 'figures';
 
+export async function runTask(task: string, options: any = {}) {
+    const { Runner } = require('../runner');
+    const { MonorepoManager } = require('../monorepo');
+    const chalk = require('chalk');
+    const figures = require('figures');
+
+    try {
+        const runner = new Runner({
+            parallel: options.parallel ?? true,
+            printOutput: options.printOutput ?? true,
+            color: options.color ?? true,
+            showTiming: options.showTiming ?? true,
+            prefix: options.prefix ?? true,
+            stopOnError: options.stopOnError ?? true,
+            minimalOutput: options.minimalOutput ?? false,
+            groupOutput: options.groupOutput ?? false,
+            isServerMode: options.isServerMode ?? false
+        });
+        
+        const monorepo = new MonorepoManager(process.cwd(), runner);
+        await monorepo.runTask(task);
+        
+    } catch (error: unknown) {
+        if (error instanceof Error) {
+            console.error(chalk.red(`${figures.cross} Error: ${error.message}`));
+        } else {
+            console.error(chalk.red(`${figures.cross} An unknown error occurred`));
+        }
+        process.exit(1);
+    }
+}
+
 export function addRunCommands(program: Command): void {
 
   // neex run <task>
@@ -13,30 +45,7 @@ export function addRunCommands(program: Command): void {
     .command('run <task>')
     .description('Run a task defined in neex.json across all workspaces')
     .action(async (task) => {
-      try {
-        const runner = new Runner({
-            parallel: true, // managed by monorepo manager
-            printOutput: true,
-            color: true,
-            showTiming: true,
-            prefix: true,
-            stopOnError: true,
-            minimalOutput: false,
-            groupOutput: false,
-            isServerMode: false
-        });
-        
-        const monorepo = new MonorepoManager(process.cwd(), runner);
-        await monorepo.runTask(task);
-        
-      } catch (error: unknown) {
-        if (error instanceof Error) {
-          console.error(chalk.red(`${figures.cross} Error: ${error.message}`));
-        } else {
-          console.error(chalk.red(`${figures.cross} An unknown error occurred`));
-        }
-        process.exit(1);
-      }
+        await runTask(task);
     });
 
   // neex affected <task> - Only run on changed packages
@@ -108,11 +117,11 @@ export function addRunCommands(program: Command): void {
 
   // runx command: parallel execution by default (with alias 'p'), can run sequentially with -q
   program
-    .command('p <commands...>', { isDefault: true })
+    .command('p <commands...>')
     .alias('par')
     .alias('parallel')
     .description(
-      'Run commands in parallel (default) or sequentially with -q. This is the default command.'
+      'Run commands in parallel (default) or sequentially with -q'
     )
     .option('-c, --no-color', 'Disable colored output')
     .option('-t, --no-timing', 'Hide timing information')
