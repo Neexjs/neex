@@ -5,6 +5,7 @@ import { Native } from './native';
 import { Semaphore } from './semaphore';
 import { ZeroConfig } from './zero-config';
 import { AffectedDetector, AffectedPackage } from './affected-detector';
+import { TaskGraph, buildTaskGraph, PackageTask } from './task-graph';
 
 export interface NeexConfig {
   pipeline?: Record<string, TaskConfig>;
@@ -154,55 +155,62 @@ export class MonorepoManager {
     const isPersistent = taskConfig?.persistent ?? false;
     const dependsOn = taskConfig?.dependsOn || [];
     
-    // Check if task depends on itself in dependencies (topological execution)
-    // dependsOn: ["^build"] means run build on dependencies first.
+    // Check for ^ (upstream dependencies) - this triggers graph-based execution
+    const dependsOnUpstream = dependsOn.some(d => d.startsWith('^'));
     
-    const topoOrder = this.getTopologicalOrder();
     const pkgNames = Array.from(this.packages.keys());
     
     // Filter packages that actually have the script
     const packagesWithScript = pkgNames.filter(name => !!this.packages.get(name)?.scripts[taskName]);
     
     if (packagesWithScript.length === 0) {
-        logger.printLine(`No packages found with script: ${taskName}`, 'warn');
-        return;
+      logger.printLine(`No packages found with script: ${taskName}`, 'warn');
+      return;
     }
 
     const pm = await this.getPackageManager();
+    
+    // Get internal package names for dependency resolution
+    const internalPkgNames = new Set(this.packages.keys());
 
-    if (isPersistent) {
-        // Run parallel
-        logger.printLine(`Running ${taskName} in parallel for: ${packagesWithScript.join(', ')}`, 'info');
-        const commands = packagesWithScript.map(name => {
-            const pkg = this.packages.get(name)!;
-            // Use package manager run to ensure PATH is correct
-            return `cd ${pkg.path} && ${pm} run ${taskName}`; 
-        });
-        await this.runner.runParallel(commands);
-    } else {
-        // Check for ^ (upstream dependencies)
-        const dependsOnUpstream = dependsOn.some(d => d.startsWith('^'));
-        
-        if (dependsOnUpstream) {
-            // Run in topological order
-             logger.printLine(`Running ${taskName} in topological order...`, 'info');
-             const orderedPackages = topoOrder.filter(name => packagesWithScript.includes(name));
-             
-             const commands = orderedPackages.map(name => {
-                 const pkg = this.packages.get(name)!;
-                 return `cd ${pkg.path} && ${pm} run ${taskName}`;
-             });
-             
-             await this.runner.runSequential(commands);
-        } else {
-            // Run in parallel
-            logger.printLine(`Running ${taskName} in parallel (no upstream dependency enforcement)...`, 'info');
-            const commands = packagesWithScript.map(name => {
-                const pkg = this.packages.get(name)!;
-                return `cd ${pkg.path} && ${pm} run ${taskName}`;
-            });
-             await this.runner.runParallel(commands);
-        }
+    // Build task list for TaskGraph
+    const tasks: PackageTask[] = packagesWithScript.map(name => {
+      const pkg = this.packages.get(name)!;
+      
+      // Find internal dependencies (only packages in this monorepo)
+      const internalDeps = pkg.dependencies.filter(dep => internalPkgNames.has(dep));
+      
+      return {
+        packageName: name,
+        taskName,
+        command: `${pm} run ${taskName}`,
+        cwd: pkg.path,
+        internalDeps,
+      };
+    });
+
+    // =========================================================================
+    // STREAMING TASK GRAPH EXECUTION
+    // This is what makes neex faster than Turbo/Nx:
+    // - Tasks start as soon as their dependencies complete
+    // - No waiting for entire "phase" to finish
+    // - Maximum parallelism with dependency awareness
+    // =========================================================================
+
+    const graph = buildTaskGraph(tasks, dependsOnUpstream, {
+      maxConcurrency: isPersistent ? tasks.length : undefined, // No limit for persistent
+      stopOnError: !isPersistent,  // Don't stop dev servers on error
+      printOutput: true,
+      color: true,
+    });
+
+    // Execute with streaming
+    const results = await graph.execute();
+    
+    // Check for failures
+    const failed = results.filter(r => !r.success);
+    if (failed.length > 0 && !isPersistent) {
+      throw new Error(`${failed.length} task(s) failed`);
     }
   }
 
