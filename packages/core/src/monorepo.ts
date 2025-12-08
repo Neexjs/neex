@@ -3,6 +3,7 @@ import { Runner } from './runner';
 import logger from './logger';
 import { Native } from './native';
 import { Semaphore } from './semaphore';
+import { ZeroConfig } from './zero-config';
 
 export interface NeexConfig {
   pipeline?: Record<string, TaskConfig>;
@@ -34,15 +35,16 @@ export class MonorepoManager {
     this.runner = runner;
   }
 
+  /**
+   * Load configuration with Zero-Config fallback
+   * First tries neex.json, then auto-generates from package.json
+   */
   async loadConfig(): Promise<void> {
-    const configPath = path.join(this.rootDir, 'neex.json');
-    const file = Bun.file(configPath);
-    if (await file.exists()) {
-      try {
-        this.config = await file.json();
-      } catch (error) {
-        logger.printLine(`Failed to parse neex.json: ${(error as Error).message}`, 'warn');
-      }
+    try {
+      this.config = await ZeroConfig.loadWithFallback(this.rootDir);
+    } catch (error) {
+      logger.printLine(`Failed to load config: ${(error as Error).message}`, 'warn');
+      this.config = {};
     }
   }
 
