@@ -39,6 +39,38 @@ export function addRunCommands(program: Command): void {
       }
     });
 
+  // neex affected <task> - Only run on changed packages
+  program
+    .command('affected <task>')
+    .description('Run a task only on packages affected by git changes')
+    .option('-b, --base <ref>', 'Git ref to compare against', 'HEAD~1')
+    .action(async (task, options) => {
+      try {
+        const runner = new Runner({
+            parallel: true,
+            printOutput: true,
+            color: true,
+            showTiming: true,
+            prefix: true,
+            stopOnError: true,
+            minimalOutput: false,
+            groupOutput: false,
+            isServerMode: false
+        });
+        
+        const monorepo = new MonorepoManager(process.cwd(), runner);
+        await monorepo.runAffected(task, options.base);
+        
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          console.error(chalk.red(`${figures.cross} Error: ${error.message}`));
+        } else {
+          console.error(chalk.red(`${figures.cross} An unknown error occurred`));
+        }
+        process.exit(1);
+      }
+    });
+
   // Main command for sequential execution (similar to run-s)
   program
     .command('s <commands...>')

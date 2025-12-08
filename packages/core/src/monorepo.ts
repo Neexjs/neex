@@ -4,6 +4,7 @@ import logger from './logger';
 import { Native } from './native';
 import { Semaphore } from './semaphore';
 import { ZeroConfig } from './zero-config';
+import { AffectedDetector, AffectedPackage } from './affected-detector';
 
 export interface NeexConfig {
   pipeline?: Record<string, TaskConfig>;
@@ -196,8 +197,64 @@ export class MonorepoManager {
                 const pkg = this.packages.get(name)!;
                 return `cd ${pkg.path} && ${pm} run ${taskName}`;
             });
-            await this.runner.runParallel(commands);
+             await this.runner.runParallel(commands);
         }
+    }
+  }
+
+  /**
+   * Run task only on affected packages
+   * Uses git to detect changes and dependency graph for transitives
+   */
+  async runAffected(taskName: string, base: string = 'HEAD~1'): Promise<void> {
+    await this.loadConfig();
+    await this.scanWorkspaces();
+
+    // Build detector with our packages
+    const detector = new AffectedDetector(this.rootDir);
+    await detector.buildDependencyGraph(this.packages);
+
+    // Detect affected packages
+    const affected = await detector.detectAffectedSinceCommit(base);
+
+    if (affected.length === 0) {
+      logger.printLine(`[Affected] No packages affected since ${base}`, 'info');
+      return;
+    }
+
+    detector.logAffected(affected);
+
+    // Get topological order
+    const orderedAffected = detector.getTopologicalOrder(affected);
+    
+    // Filter to packages that have the script
+    const packagesWithScript = orderedAffected.filter(
+      pkg => !!this.packages.get(pkg.name)?.scripts[taskName]
+    );
+
+    if (packagesWithScript.length === 0) {
+      logger.printLine(`[Affected] No affected packages have script: ${taskName}`, 'warn');
+      return;
+    }
+
+    const pm = await this.getPackageManager();
+    const taskConfig = this.config?.pipeline?.[taskName];
+    const isPersistent = taskConfig?.persistent ?? false;
+
+    logger.printLine(
+      `[Affected] Running ${taskName} on ${packagesWithScript.length} package(s)...`,
+      'info'
+    );
+
+    const commands = packagesWithScript.map(pkg => {
+      return `cd ${pkg.path} && ${pm} run ${taskName}`;
+    });
+
+    if (isPersistent) {
+      await this.runner.runParallel(commands);
+    } else {
+      // Run in topological order for non-persistent tasks
+      await this.runner.runSequential(commands);
     }
   }
 }
