@@ -1,0 +1,10 @@
+export { default as eslintConfigContent } from './eslintConfigContent';
+export { default as gitignoreContent } from './gitignoreContent';
+export { default as globalsCssContent } from './globalsCssContent';
+export { default as layoutContent } from './layoutContent';
+export { default as nextConfigContent } from './nextConfigContent';
+export { default as nextEnvContent } from './nextEnvContent';
+export { default as packageJsonContent } from './packageJsonContent';
+export { default as pageContent } from './pageContent';
+export { default as postcssConfigContent } from './postcssConfigContent';
+export { default as tsConfigFrontendContent } from './tsConfigFrontendContent';

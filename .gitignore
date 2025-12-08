@@ -1,38 +1,112 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ============================================
+# Neex Monorepo .gitignore
+# ============================================
 
 # Dependencies
-node_modules
+node_modules/
 .pnp
 .pnp.js
+.pnpm-store/
 
-# Local env files
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# Package manager locks (keep only one)
+# Uncomment the ones you don't use:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
-# Testing
-coverage
-feet.txt
-# Turbo
-.turbo
-
-# Vercel
-.vercel
-
+# ============================================
 # Build Outputs
-.next/
+# ============================================
+dist/
+build/
 out/
-build
-dist
+.next/
+.nuxt/
 
+# ============================================
+# Zig Native Build (IMPORTANT)
+# ============================================
+packages/native/.zig-cache/
+packages/native/zig-out/
+*.dylib
+*.so
+*.dll
+*.node
 
-# Debug
+# Keep only source, not compiled binaries
+# Binaries should be built in CI or downloaded via optionalDependencies
+
+# ============================================
+# Cache & Temp Files
+# ============================================
+.neex/
+.neex-cache/
+.neex-temp/
+.turbo/
+.cache/
+*.cache
+.eslintcache
+.prettiercache
+tsconfig.tsbuildinfo
+
+# ============================================
+# Testing & Coverage
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+neex-verification-workspace/
+
+# ============================================
+# Environment Files
+# ============================================
+.env
+.env.*
+!.env.example
+!.env.sample
+
+# ============================================
+# IDE & Editor
+# ============================================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ============================================
+# OS Files
+# ============================================
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ============================================
+# Logs & Debug
+# ============================================
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
+# ============================================
 # Misc
-.DS_Store
+# ============================================
 *.pem
+*.pid
+*.seed
+*.tgz
+.vercel/
+
+# Temporary test projects
+test-project/
+temp-*/
+tmp/

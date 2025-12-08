@@ -1,0 +1,12 @@
+admin/
+├── page.tsx
+├── layout.tsx
+├── ـcomponents/
+│ ├── Header.tsx
+│ └── Sidebar.tsx
+├── database/
+│ └── page.tsx
+└── settings/
+└── page.tsx طبق این ساختار packages/admin/src/templates/frontend.ts این درستش کن بر اساس admin فایل ها و فولدر ها و محتویات این پروژه
+
+

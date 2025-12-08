@@ -1,0 +1,12 @@
+node_modules
+dist
+build
+.next
+.turbo
+coverage
+*.log
+.env*
+bun.lock
+package-lock.json
+yarn.lock
+~/.bun/install/cache/**

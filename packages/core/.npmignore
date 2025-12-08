@@ -1,0 +1,14 @@
+src/
+bin/
+tsconfig.json
+.gitignore
+jest.config.js
+**/*.test.ts
+**/*.spec.ts
+coverage/
+package-lock.json
+eslint.config.mjs
+../../node_modules/
+../..
+.turbo/
+*.log

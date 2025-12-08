@@ -1,0 +1,16 @@
+node_modules/
+dist/tsconfig.tsbuildinfo
+*.log
+*.tmp
+.DS_Store
+
+test/
+tests/
+coverage/
+
+src/
+tsconfig.json
+
+.eslintrc
+.prettierrc
+turbo.json
