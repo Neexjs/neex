@@ -6,6 +6,7 @@ import { Semaphore } from './semaphore';
 import { ZeroConfig } from './zero-config';
 import { AffectedDetector, AffectedPackage } from './affected-detector';
 import { TaskGraph, buildTaskGraph, PackageTask } from './task-graph';
+import { ProjectGraph } from './project-graph';
 
 export interface NeexConfig {
   pipeline?: Record<string, TaskConfig>;
@@ -31,6 +32,7 @@ export class MonorepoManager {
   private config: NeexConfig | null = null;
   private packages: Map<string, PackageInfo> = new Map();
   private runner: Runner;
+  private projectGraph: ProjectGraph | null = null;
 
   constructor(rootDir: string, runner: Runner) {
     this.rootDir = rootDir;
@@ -50,41 +52,73 @@ export class MonorepoManager {
     }
   }
 
+  /**
+   * Scan workspaces using incremental ProjectGraph
+   * - Uses SQLite for persistence
+   * - Only updates changed packages
+   * - Much faster than Nx on subsequent runs
+   */
   async scanWorkspaces(): Promise<void> {
     try {
-      // Use Native Engine for instant discovery (Zig + Bun)
+      // Initialize ProjectGraph with SQLite persistence
+      this.projectGraph = new ProjectGraph(this.rootDir);
+      const stats = await this.projectGraph.load();
+      
+      // Convert ProjectGraph nodes to PackageInfo
+      for (const [name, node] of this.projectGraph.getAllPackages()) {
+        // Skip root package
+        if (node.path === this.rootDir) continue;
+
+        this.packages.set(name, {
+          name: node.name,
+          path: node.path,
+          dependencies: [...node.dependencies, ...node.devDependencies],
+          scripts: node.scripts,
+        });
+      }
+
+      // Print stats if packages were loaded
+      if (stats.totalPackages > 0) {
+        this.projectGraph.printSummary();
+      }
+
+    } catch (error) {
+      // Fallback to basic scanning if SQLite fails
+      logger.printLine(`ProjectGraph failed, using fallback: ${(error as Error).message}`, 'warn');
+      await this.scanWorkspacesFallback();
+    }
+  }
+
+  /**
+   * Fallback scanning method (no SQLite)
+   */
+  private async scanWorkspacesFallback(): Promise<void> {
+    try {
       const relativePackageJsonPaths = Native.scan(this.rootDir);
       
       for (const relPath of relativePackageJsonPaths) {
-          // Prevent infinite recursion: Do not treat the root package as a workspace
-          if (relPath === 'package.json') continue;
+        if (relPath === 'package.json') continue;
 
-          const packageJsonPath = path.join(this.rootDir, relPath);
-          const pkgDir = path.dirname(packageJsonPath);
+        const packageJsonPath = path.join(this.rootDir, relPath);
+        const pkgDir = path.dirname(packageJsonPath);
 
-          // FIX: Explicitly ignore root directory to prevent infinite recursion
-          if (pkgDir === this.rootDir || relPath === 'package.json' || relPath === './package.json') {
-             continue;
-          }
+        if (pkgDir === this.rootDir) continue;
 
-          try {
-            const pkg = await Bun.file(packageJsonPath).json();
-            
-            // Basic validation
-            if (!pkg.name) continue;
+        try {
+          const pkg = await Bun.file(packageJsonPath).json();
+          if (!pkg.name) continue;
 
-            this.packages.set(pkg.name, {
-                name: pkg.name,
-                path: pkgDir,
-                dependencies: [
-                    ...Object.keys(pkg.dependencies || {}),
-                    ...Object.keys(pkg.devDependencies || {})
-                ],
-                scripts: pkg.scripts || {}
-            });
-        } catch(e) { /* ignore invalid json */ }
+          this.packages.set(pkg.name, {
+            name: pkg.name,
+            path: pkgDir,
+            dependencies: [
+              ...Object.keys(pkg.dependencies || {}),
+              ...Object.keys(pkg.devDependencies || {})
+            ],
+            scripts: pkg.scripts || {}
+          });
+        } catch { /* ignore */ }
       }
-
     } catch (error) {
       logger.printLine(`Error scanning workspaces: ${(error as Error).message}`, 'error');
     }
