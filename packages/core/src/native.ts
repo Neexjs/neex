@@ -38,14 +38,6 @@ async function readFileOptimized(filePath: string): Promise<Uint8Array> {
   return new Uint8Array(data);
 }
 
-/**
- * Synchronous file read for compatibility
- */
-function readFileSyncOptimized(filePath: string): Uint8Array {
-  const data = fs.readFileSync(filePath);
-  return new Uint8Array(data);
-}
-
 interface WasmModule {
     memory: WebAssembly.Memory;
     alloc: (len: number) => number;

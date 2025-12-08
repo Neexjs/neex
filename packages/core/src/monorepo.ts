@@ -2,7 +2,6 @@ import path from 'path';
 import { Runner } from './runner';
 import logger from './logger';
 import { Native } from './native';
-import { Semaphore } from './semaphore';
 import { ZeroConfig } from './zero-config';
 import { AffectedDetector, AffectedPackage } from './affected-detector';
 import { TaskGraph, buildTaskGraph, PackageTask } from './task-graph';
