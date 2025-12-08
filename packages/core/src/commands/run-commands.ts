@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { run } from '../index';
 import { Runner } from '../runner';
 import { MonorepoManager } from '../monorepo';
+import { SmartWatcher } from '../smart-watch';
 import chalk from 'chalk';
 import figures from 'figures';
 
@@ -70,6 +71,34 @@ export function addRunCommands(program: Command): void {
         const monorepo = new MonorepoManager(process.cwd(), runner);
         await monorepo.runAffected(task, options.base);
         
+      } catch (error: unknown) {
+        if (error instanceof Error) {
+          console.error(chalk.red(`${figures.cross} Error: ${error.message}`));
+        } else {
+          console.error(chalk.red(`${figures.cross} An unknown error occurred`));
+        }
+        process.exit(1);
+      }
+    });
+
+  // neex watch <task> - Smart watch mode with affected-only rebuilds
+  program
+    .command('watch <task>')
+    .description('Watch for changes and rebuild only affected packages')
+    .option('-d, --debounce <ms>', 'Debounce delay in milliseconds', '300')
+    .option('--no-initial', 'Skip initial build')
+    .option('-c, --concurrency <n>', 'Max concurrent tasks', '4')
+    .action(async (task, options) => {
+      try {
+        const watcher = new SmartWatcher(process.cwd(), task, {
+          debounceMs: parseInt(options.debounce),
+          initialBuild: options.initial !== false,
+          maxConcurrency: parseInt(options.concurrency),
+          printOutput: true,
+        });
+        await watcher.start();
+        // Keep alive
+        await new Promise(() => {});
       } catch (error: unknown) {
         if (error instanceof Error) {
           console.error(chalk.red(`${figures.cross} Error: ${error.message}`));
