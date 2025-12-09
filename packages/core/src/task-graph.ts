@@ -6,11 +6,13 @@
  * - Parallel boundaries (max concurrency)
  * - Streaming: start tasks as soon as dependencies complete
  * - Better than Turbo/Nx: smarter graph traversal
+ * - Beautiful NEEX-branded terminal output
  */
 
 import { spawn, type Subprocess } from 'bun';
 import chalk from 'chalk';
 import figures from 'figures';
+import { SimpleLogger } from './terminal-ui';
 
 // ============================================================================
 // Types
@@ -298,9 +300,12 @@ export class TaskGraph {
     const results: TaskResult[] = [];
     const totalTasks = this.nodes.size;
 
-    console.log(
-      chalk.blue(`\n${figures.pointer} Executing ${totalTasks} tasks with max ${this.options.maxConcurrency} parallel\n`)
-    );
+    // NEEX branded header
+    console.log();
+    console.log(chalk.magenta.bold(' NEEX ') + chalk.dim('Task Runner'));
+    console.log(chalk.dim('─'.repeat(50)));
+    console.log(`${chalk.cyan(figures.pointer)} Executing ${chalk.bold(totalTasks)} tasks with max ${chalk.bold(this.options.maxConcurrency)} parallel`);
+    console.log();
 
     const startTime = Date.now();
 
@@ -363,11 +368,15 @@ export class TaskGraph {
     const failCount = results.filter(r => !r.success).length;
     const skippedCount = Array.from(this.nodes.values()).filter(n => n.status === 'skipped').length;
 
-    console.log(chalk.blue(`\n${figures.pointer} Task Summary:`));
+    // NEEX branded summary
+    console.log();
+    console.log(chalk.dim('─'.repeat(50)));
+    console.log(`${chalk.magenta(figures.pointer)} Task Summary:`);
     console.log(`   ${chalk.green(figures.tick)} ${successCount} successful`);
     if (failCount > 0) console.log(`   ${chalk.red(figures.cross)} ${failCount} failed`);
     if (skippedCount > 0) console.log(`   ${chalk.yellow(figures.warning)} ${skippedCount} skipped`);
-    console.log(`   ${chalk.blue(figures.info)} Total time: ${this.formatDuration(totalDuration)}\n`);
+    console.log(`   ${chalk.blue(figures.info)} Total time: ${chalk.bold(this.formatDuration(totalDuration))}`);
+    console.log();
 
     return results;
   }
