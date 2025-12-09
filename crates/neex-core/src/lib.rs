@@ -2,13 +2,16 @@
 //!
 //! Features:
 //! - BLAKE3 hashing (10x faster than SHA)
+//! - AST-based hashing (ignores comments/whitespace) - KILLER FEATURE
 //! - Parallel file processing with Rayon
 //! - Respects .gitignore patterns
 //! - Content-addressable storage
 
 pub mod hasher;
+pub mod ast_hasher;
 pub mod graph;
 pub mod cache;
 
 pub use hasher::Hasher;
+pub use ast_hasher::{hash_ast, is_parseable};
 pub use graph::DependencyGraph;
