@@ -126,8 +126,8 @@ export class SmartWatcher {
           };
 
           this.packages.set(pkg.name, pkgInfo);
-        } catch {
-          // Ignore invalid package.json
+        } catch (e) {
+          // Invalid package.json, skip
         }
       }
     }

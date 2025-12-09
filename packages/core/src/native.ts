@@ -148,8 +148,8 @@ function scanWorkspaceSync(rootDir: string): string[] {
                     results.push(path.relative(rootDir, fullPath));
                 }
             }
-        } catch {
-            // Ignore permission errors
+        } catch (e) {
+            // Permission error, skip directory
         }
     }
 
@@ -193,8 +193,8 @@ export const Native = {
                 hashCache.set(cacheKey, hash);
                 
                 return hash;
-            } catch {
-                return BigInt(0);
+            } catch (e) {
+                return BigInt(0); // File read error
             }
         });
     },
@@ -286,8 +286,8 @@ export const Native = {
             const chunkPromises = changedFiles.map(async (file) => {
                 try {
                     return await readFileOptimized(file);
-                } catch {
-                    return null;
+                } catch (e) {
+                    return null; // File read error
                 }
             });
             

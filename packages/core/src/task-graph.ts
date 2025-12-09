@@ -287,8 +287,8 @@ export class TaskGraph {
           }
         }
       }
-    } catch {
-      // Stream closed
+    } catch (e) {
+      // Stream closed, ignore
     }
   }
 

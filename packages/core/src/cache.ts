@@ -65,8 +65,8 @@ export class CacheManager {
     private dirExists(dirPath: string): boolean {
         try {
             return fs.existsSync(dirPath) && fs.statSync(dirPath).isDirectory();
-        } catch {
-            return false;
+        } catch (e) {
+            return false; // Stat error
         }
     }
 
@@ -254,8 +254,8 @@ export class CacheManager {
                         // Restore permissions
                         try {
                             fs.chmodSync(destPath, file.mode);
-                        } catch {
-                            // Ignore chmod errors
+                        } catch (e) {
+                            // Chmod permission error, ignore
                         }
                         restored++;
                     } else {
@@ -336,8 +336,8 @@ export class CacheManager {
                             artifactsCleaned++;
                         }
                     }
-                } catch {
-                    // If we can't read meta, clean it anyway
+                } catch (e) {
+                    // Meta read failed, clean it anyway
                     await fsPromises.rm(artifactPath, { recursive: true, force: true });
                     artifactsCleaned++;
                 }

@@ -197,8 +197,8 @@ export class RemoteCacheClient {
 
                 throw new Error(`Download failed: ${response.status}`);
             });
-        } catch {
-            return null;
+        } catch (e) {
+            return null; // Network or parse error
         }
     }
 
@@ -219,8 +219,8 @@ export class RemoteCacheClient {
             });
 
             return response.ok;
-        } catch {
-            return false;
+        } catch (e) {
+            return false; // Network error
         }
     }
 

@@ -52,8 +52,8 @@ export class IncrementalTracker {
                     this.state = parsed;
                 }
             }
-        } catch {
-            // Ignore errors, start fresh
+        } catch (e) {
+            // State file doesn't exist or invalid, start fresh
         }
     }
 
@@ -74,8 +74,8 @@ export class IncrementalTracker {
             this.state.timestamp = Date.now();
             fs.writeFileSync(statePath, JSON.stringify(this.state, null, 2));
             this.dirty = false;
-        } catch {
-            // Ignore save errors
+        } catch (e) {
+            // Failed to save state, ignore
         }
     }
 
@@ -100,8 +100,8 @@ export class IncrementalTracker {
 
             // Changed if mtime or size differs
             return cached.mtime !== mtime || cached.size !== size;
-        } catch {
-            return true; // Error = assume changed
+        } catch (e) {
+            return true; // File error = assume changed
         }
     }
 
@@ -144,8 +144,8 @@ export class IncrementalTracker {
             };
             
             this.dirty = true;
-        } catch {
-            // Ignore errors
+        } catch (e) {
+            // File stat error, ignore
         }
     }
 
@@ -178,8 +178,8 @@ export class IncrementalTracker {
                         }
                     }
                 }
-            } catch {
-                // Ignore permission errors
+            } catch (e) {
+                // Permission error, skip directory
             }
         };
 
@@ -214,8 +214,8 @@ export class IncrementalTracker {
                         }
                     }
                 }
-            } catch {
-                // Ignore permission errors
+            } catch (e) {
+                // Permission error, skip directory
             }
         };
 

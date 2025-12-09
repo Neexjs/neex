@@ -116,7 +116,9 @@ export class MonorepoManager {
             ],
             scripts: pkg.scripts || {}
           });
-        } catch { /* ignore */ }
+        } catch (e) {
+          // Invalid package.json, skip
+        }
       }
     } catch (error) {
       logger.printLine(`Error scanning workspaces: ${(error as Error).message}`, 'error');

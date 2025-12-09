@@ -159,7 +159,8 @@ export class ProjectGraph {
     try {
       const stat = fs.statSync(pkgJsonPath);
       return stat.mtimeMs > cached.lastModified;
-    } catch {
+    } catch (e) {
+      // File doesn't exist or inaccessible
       return true;
     }
   }
@@ -189,7 +190,8 @@ export class ProjectGraph {
         lastModified: stat.mtimeMs,
         hash: this.computeHash(content),
       };
-    } catch {
+    } catch (e) {
+      // Failed to parse package.json
       return null;
     }
   }
@@ -264,7 +266,9 @@ export class ProjectGraph {
         const content = fs.readFileSync(pkgPath, 'utf-8');
         const pkg = JSON.parse(content);
         if (pkg.name) internalPkgNames.add(pkg.name);
-      } catch { /* skip */ }
+      } catch (e) {
+        // Skip invalid package.json
+      }
     }
 
     // Second pass: load packages incrementally
@@ -289,7 +293,9 @@ export class ProjectGraph {
             this.stats.updatedPackages++;
           }
         }
-      } catch { /* skip */ }
+      } catch (e) {
+        // Skip invalid package.json
+      }
     }
 
     // Build reverse dependency map
