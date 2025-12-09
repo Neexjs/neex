@@ -1,6 +1,0 @@
-{
-  "name": "@my/web",
-  "version": "1.0.0",
-  "scripts": { "build": "echo Building web..." },
-  "dependencies": { "@my/ui": "*", "@my/utils": "*" }
-}

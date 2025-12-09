@@ -1,5 +1,0 @@
-#!/bin/sh
-# Resolve the true path of the script, following symlinks
-REALPATH=$(realpath "$0")
-DIR=$(dirname "$REALPATH")
-exec bun "$DIR/../dist/bin/neex.js" "$@"
