@@ -6,6 +6,7 @@
  * - Gzip Compression (2.5x smaller)
  * - Hardlink Restore (zero-copy)
  * - Manifest-based tracking
+ * - Remote Cache Fallback (R2/S3)
  */
 
 import path from 'path';
@@ -14,6 +15,7 @@ import fsPromises from 'node:fs/promises';
 import logger from './logger.js';
 import { CommandOutput } from './types.js';
 import { ContentStore } from './content-store';
+import { RemoteCacheClient } from './remote-cache';
 
 export interface CacheMeta {
     hash: string;
@@ -39,11 +41,15 @@ export class CacheManager {
     private cacheDir: string;
     private artifactsDir: string;
     private contentStore: ContentStore;
+    private remoteCache: RemoteCacheClient;
+    private rootDir: string;
 
     constructor(rootDir: string) {
+        this.rootDir = rootDir;
         this.cacheDir = path.join(rootDir, '.neex', 'cache');
         this.artifactsDir = path.join(this.cacheDir, 'artifacts');
         this.contentStore = new ContentStore(this.cacheDir);
+        this.remoteCache = new RemoteCacheClient(rootDir);
     }
 
     /**
@@ -160,6 +166,16 @@ export class CacheManager {
                 'info'
             );
         }
+
+        // Upload to remote cache if enabled
+        if (this.remoteCache.isEnabled()) {
+            try {
+                const artifactData = JSON.stringify({ meta, manifest });
+                await this.remoteCache.put(hash, Buffer.from(artifactData));
+            } catch (e) {
+                logger.printLine(`[Remote Cache] Upload failed: ${(e as Error).message}`, 'warn');
+            }
+        }
     }
 
     /**
@@ -171,9 +187,30 @@ export class CacheManager {
         const metaPath = path.join(artifactDir, 'meta.json');
         const manifestPath = path.join(artifactDir, 'manifest.json');
 
-        // Check if cache exists
+        // Check if local cache exists
         if (!fs.existsSync(metaPath) || !fs.existsSync(manifestPath)) {
-            return null;
+            // Try remote cache fallback
+            if (this.remoteCache.isEnabled()) {
+                const remoteData = await this.remoteCache.get(hash);
+                if (remoteData) {
+                    logger.printLine(`[Remote Cache] Hit: ${hash.substring(0, 10)}...`, 'info');
+                    try {
+                        const { meta, manifest } = JSON.parse(remoteData.toString());
+                        // Save to local cache for next time
+                        await fsPromises.mkdir(artifactDir, { recursive: true });
+                        await Bun.write(metaPath, JSON.stringify(meta, null, 2));
+                        await Bun.write(manifestPath, JSON.stringify(manifest, null, 2));
+                        // Continue with normal restore flow
+                    } catch (e) {
+                        logger.printLine(`[Remote Cache] Parse failed: ${(e as Error).message}`, 'warn');
+                        return null;
+                    }
+                } else {
+                    return null;
+                }
+            } else {
+                return null;
+            }
         }
 
         try {
