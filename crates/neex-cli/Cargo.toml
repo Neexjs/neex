@@ -19,3 +19,5 @@ serde_json = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+dialoguer = { workspace = true }
+dirs = { workspace = true }
