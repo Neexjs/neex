@@ -5,10 +5,11 @@
 //! - neex run <script>  - Run script with caching
 //! - neex build         - Alias for neex run build
 //! - neex hash <file>   - Hash a file (AST-aware)
+//! - neex graph         - Show dependency graph and build order
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use neex_core::{hash_ast, is_parseable, TaskRunner, Hasher};
+use neex_core::{hash_ast, is_parseable, TaskRunner, Hasher, DepGraph};
 use neex_daemon::{DaemonRequest, DaemonResponse};
 use std::path::PathBuf;
 use std::time::Instant;
@@ -41,6 +42,13 @@ enum Commands {
     Hash {
         /// File to hash
         file: PathBuf,
+    },
+    /// Show workspace dependency graph and build order
+    Graph,
+    /// Show packages affected by a change
+    Affected {
+        /// Package name that changed
+        package: String,
     },
     /// Get daemon status
     Status,
@@ -106,6 +114,14 @@ async fn main() -> Result<()> {
             println!("🔑 Hash: {}", hash);
         }
 
+        Commands::Graph => {
+            show_graph(&cwd)?;
+        }
+
+        Commands::Affected { package } => {
+            show_affected(&cwd, &package)?;
+        }
+
         Commands::Status => {
             let socket_path = get_socket_path();
             match send_request(&socket_path, DaemonRequest::Stats).await {
@@ -128,6 +144,72 @@ async fn main() -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// Show dependency graph
+fn show_graph(cwd: &PathBuf) -> Result<()> {
+    println!("🕸️  Building Dependency Graph...");
+    let start = Instant::now();
+    
+    let graph = DepGraph::from_root(cwd)?;
+    let elapsed = start.elapsed();
+    
+    println!();
+    println!("📦 Packages: {}", graph.package_count());
+    println!("🔗 Dependencies: {}", graph.edge_count());
+    println!();
+
+    // Check for cycles
+    if graph.has_cycle() {
+        println!("⚠️  Warning: Circular dependency detected!");
+        return Ok(());
+    }
+
+    // Print all packages
+    println!("📋 Workspaces:");
+    for pkg in graph.packages() {
+        println!("   • {} ({})", pkg.name, pkg.path.display());
+    }
+    println!();
+
+    // Print build order
+    match graph.get_build_order() {
+        Ok(order) => {
+            println!("🔨 Build Order (dependencies first):");
+            for (i, pkg) in order.iter().enumerate() {
+                println!("   {}. {}", i + 1, pkg.name);
+            }
+        }
+        Err(e) => {
+            println!("❌ Error: {}", e);
+        }
+    }
+    
+    println!();
+    println!("✅ Graph built in {:?}", elapsed);
+    
+    Ok(())
+}
+
+/// Show affected packages
+fn show_affected(cwd: &PathBuf, package: &str) -> Result<()> {
+    println!("🔍 Finding packages affected by {}...", package);
+    
+    let graph = DepGraph::from_root(cwd)?;
+    let affected = graph.get_affected(package);
+    
+    if affected.is_empty() {
+        println!("❌ Package '{}' not found", package);
+        return Ok(());
+    }
+    
+    println!();
+    println!("📦 Affected packages ({}):", affected.len());
+    for pkg in &affected {
+        println!("   • {}", pkg.name);
+    }
+    
     Ok(())
 }
 

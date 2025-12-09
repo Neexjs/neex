@@ -21,3 +21,4 @@ tree-sitter-javascript = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 tokio = { workspace = true }
 sled = { workspace = true }
+glob = { workspace = true }

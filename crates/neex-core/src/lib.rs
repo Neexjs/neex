@@ -3,6 +3,7 @@
 //! Features:
 //! - BLAKE3 hashing (10x faster than SHA)
 //! - AST-based hashing (ignores comments/whitespace) - KILLER FEATURE
+//! - Workspace dependency graph with topological sort - MONOREPO FEATURE
 //! - Task execution with output caching - TURBO FEATURE
 //! - Parallel file processing with Rayon
 //! - Respects .gitignore patterns
@@ -16,5 +17,5 @@ pub mod runner;
 
 pub use hasher::Hasher;
 pub use ast_hasher::{hash_ast, is_parseable};
-pub use graph::DependencyGraph;
+pub use graph::{DepGraph, WorkspaceNode, DependencyGraph};
 pub use runner::{TaskRunner, TaskOutput};
