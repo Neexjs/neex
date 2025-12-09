@@ -1,17 +1,19 @@
 //! Neex CLI - Ultra-fast Monorepo Build Tool
 //!
 //! Commands:
-//! - neex daemon start  - Start background daemon
-//! - neex run <script>  - Run script with caching
-//! - neex build         - Alias for neex run build
-//! - neex hash <file>   - Hash a file (AST-aware)
-//! - neex graph         - Show dependency graph and build order
+//! - neex daemon start    - Start background daemon
+//! - neex run <script>    - Run script with caching
+//! - neex build           - Alias for neex run build
+//! - neex run-all <script> - Run script in all workspaces (parallel)
+//! - neex graph           - Show dependency graph and build order
+//! - neex hash <file>     - Hash a file (AST-aware)
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use neex_core::{hash_ast, is_parseable, TaskRunner, Hasher, DepGraph};
+use neex_core::{hash_ast, is_parseable, TaskRunner, Hasher, DepGraph, Scheduler, SchedulerTask};
 use neex_daemon::{DaemonRequest, DaemonResponse};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
@@ -38,6 +40,14 @@ enum Commands {
     },
     /// Build the project (alias for: neex run build)
     Build,
+    /// Run a script in all workspaces (parallel, respects dependencies)
+    RunAll {
+        /// Script name to run in all workspaces
+        script: String,
+        /// Max concurrent tasks (default: CPU cores)
+        #[arg(short, long)]
+        concurrency: Option<usize>,
+    },
     /// Hash a file (AST-aware for JS/TS)
     Hash {
         /// File to hash
@@ -95,6 +105,10 @@ async fn main() -> Result<()> {
             run_script(&cwd, &script).await?;
         }
 
+        Commands::RunAll { script, concurrency } => {
+            run_all_parallel(&cwd, &script, concurrency).await?;
+        }
+
         Commands::Hash { file } => {
             if !file.exists() {
                 println!("❌ File not found: {}", file.display());
@@ -147,6 +161,119 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
+/// Run a script in all workspaces in parallel
+async fn run_all_parallel(cwd: &PathBuf, script: &str, concurrency: Option<usize>) -> Result<()> {
+    println!("🚀 neex run-all {} (parallel)", script);
+    let start = Instant::now();
+
+    // Build dependency graph
+    let graph = DepGraph::from_root(cwd)?;
+    
+    if graph.package_count() == 0 {
+        println!("❌ No workspaces found");
+        return Ok(());
+    }
+
+    // Get build order
+    let build_order = graph.get_build_order()?;
+    println!("📦 Found {} workspaces", build_order.len());
+    println!();
+
+    // Build dependency map (package name -> list of dependencies)
+    let mut dep_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    for node in graph.packages() {
+        let pkg_path = cwd.join(&node.path).join("package.json");
+        if let Ok(content) = std::fs::read_to_string(&pkg_path) {
+            if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                let mut deps = Vec::new();
+                if let Some(dep_obj) = pkg.get("dependencies").and_then(|d| d.as_object()) {
+                    for dep_name in dep_obj.keys() {
+                        // Only include workspace dependencies
+                        if graph.get_package(dep_name).is_some() {
+                            deps.push(dep_name.clone());
+                        }
+                    }
+                }
+                dep_map.insert(node.name.clone(), deps);
+            }
+        }
+    }
+
+    // Create scheduler tasks
+    let root = Arc::new(cwd.clone());
+    let script_arc = Arc::new(script.to_string());
+    
+    let tasks: Vec<SchedulerTask> = build_order.iter().map(|node| {
+        let pkg_name = node.name.clone();
+        let pkg_path = node.path.clone();
+        let deps = dep_map.get(&pkg_name).cloned().unwrap_or_default();
+        let root_clone = Arc::clone(&root);
+        let script_clone = Arc::clone(&script_arc);
+        
+        SchedulerTask::new(pkg_name.clone(), deps, move || {
+            let full_path = root_clone.join(&pkg_path);
+            
+            // Check if script exists
+            let pkg_json_path = full_path.join("package.json");
+            let content = std::fs::read_to_string(&pkg_json_path)?;
+            let pkg: serde_json::Value = serde_json::from_str(&content)?;
+            
+            let cmd = pkg.get("scripts")
+                .and_then(|s| s.get(script_clone.as_str()))
+                .and_then(|c| c.as_str());
+            
+            if let Some(command) = cmd {
+                println!("▶ {} → {}", pkg_name, command);
+                
+                let output = std::process::Command::new("sh")
+                    .arg("-c")
+                    .arg(command)
+                    .current_dir(&full_path)
+                    .output()?;
+                
+                if !output.status.success() {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    return Err(anyhow::anyhow!("{} failed: {}", pkg_name, stderr));
+                }
+                
+                println!("✓ {}", pkg_name);
+            } else {
+                println!("⏭ {} (no {} script)", pkg_name, script_clone);
+            }
+            
+            Ok(())
+        })
+    }).collect();
+
+    // Run with scheduler
+    let concurrency = concurrency.unwrap_or_else(|| {
+        std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4)
+    });
+    
+    let scheduler = Scheduler::new(concurrency);
+    let results = scheduler.execute(tasks).await?;
+
+    let elapsed = start.elapsed();
+    
+    // Summary
+    println!();
+    let succeeded = results.iter().filter(|r| r.status == neex_core::TaskStatus::Completed).count();
+    let failed = results.iter().filter(|r| r.status == neex_core::TaskStatus::Failed).count();
+    
+    if failed == 0 {
+        println!("✅ All {} packages completed in {:?}", succeeded, elapsed);
+    } else {
+        println!("❌ {} succeeded, {} failed in {:?}", succeeded, failed, elapsed);
+        for r in results.iter().filter(|r| r.status == neex_core::TaskStatus::Failed) {
+            if let Some(err) = &r.error {
+                println!("   • {} failed: {}", r.name, err);
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Show dependency graph
 fn show_graph(cwd: &PathBuf) -> Result<()> {
     println!("🕸️  Building Dependency Graph...");
@@ -160,20 +287,17 @@ fn show_graph(cwd: &PathBuf) -> Result<()> {
     println!("🔗 Dependencies: {}", graph.edge_count());
     println!();
 
-    // Check for cycles
     if graph.has_cycle() {
         println!("⚠️  Warning: Circular dependency detected!");
         return Ok(());
     }
 
-    // Print all packages
     println!("📋 Workspaces:");
     for pkg in graph.packages() {
         println!("   • {} ({})", pkg.name, pkg.path.display());
     }
     println!();
 
-    // Print build order
     match graph.get_build_order() {
         Ok(order) => {
             println!("🔨 Build Order (dependencies first):");
@@ -217,10 +341,8 @@ fn show_affected(cwd: &PathBuf, package: &str) -> Result<()> {
 async fn run_script(cwd: &PathBuf, script: &str) -> Result<()> {
     let start = Instant::now();
     
-    // Create task runner with persistent cache
     let runner = TaskRunner::new(cwd)?;
 
-    // Check if script exists
     let command = match runner.get_script(script)? {
         Some(cmd) => cmd,
         None => {
@@ -232,14 +354,12 @@ async fn run_script(cwd: &PathBuf, script: &str) -> Result<()> {
     println!("🔨 neex run {} ", script);
     println!("   Command: {}", command);
 
-    // Calculate project hash
     let hasher = Hasher::new(cwd);
     let project_hash = hasher.global_hash()?;
     let cache_key = format!("{}:{}", script, &project_hash[..16]);
 
     println!("   Hash: {}...", &project_hash[..16]);
 
-    // Check cache (persistent)
     if let Some(cached) = runner.get_cached(&cache_key)? {
         let elapsed = start.elapsed();
         println!();
@@ -252,13 +372,11 @@ async fn run_script(cwd: &PathBuf, script: &str) -> Result<()> {
         return Ok(());
     }
 
-    // Execute task
     println!();
     println!("─────────────────────────────────");
     let output = runner.execute(&command).await?;
     println!("─────────────────────────────────");
 
-    // Store in persistent cache
     let mut output_with_hash = output.clone();
     output_with_hash.hash = cache_key.clone();
     runner.store_cached(&cache_key, &output_with_hash)?;
