@@ -9,7 +9,7 @@
 use anyhow::Result;
 use blake3::Hasher as Blake3Hasher;
 use std::path::Path;
-use tree_sitter::{Parser, Query, QueryCursor};
+use tree_sitter::Parser;
 
 /// Symbol kind
 #[derive(Debug, Clone, PartialEq)]

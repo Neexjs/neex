@@ -12,7 +12,7 @@ use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
-use crate::symbols::{extract_from_file, FileSymbols, Symbol};
+use crate::symbols::{extract_from_file, Symbol};
 
 /// Unique identifier for a symbol: "package:symbol_name"
 pub type SymbolId = String;
@@ -72,7 +72,7 @@ impl SymbolGraph {
 
         for pattern in workspaces {
             let pattern_path = root.join(pattern);
-            let base = pattern_path.parent().unwrap_or(root);
+            let _base = pattern_path.parent().unwrap_or(root);
             
             if let Ok(entries) = glob::glob(&pattern_path.to_string_lossy()) {
                 for entry in entries.flatten() {
@@ -177,7 +177,7 @@ impl SymbolGraph {
     }
 
     /// Scan imports in a directory
-    fn scan_imports(&mut self, dir: &Path, root: &Path) -> Result<()> {
+    fn scan_imports(&mut self, dir: &Path, _root: &Path) -> Result<()> {
         if !dir.exists() {
             return Ok(());
         }
@@ -204,7 +204,7 @@ impl SymbolGraph {
         
         for import in symbols.imports {
             // Check if import is from a known package
-            if let Some(pkg_path) = self.packages.get(&import.from) {
+            if let Some(_pkg_path) = self.packages.get(&import.from) {
                 for symbol_name in &import.symbols {
                     let id = format!("{}:{}", import.from, symbol_name);
                     self.consumers

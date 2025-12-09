@@ -4,7 +4,7 @@
 //! Persists to sled DB for crash recovery
 
 use anyhow::Result;
-use neex_core::hasher::{FileHash, Hasher};
+use neex_core::hasher::Hasher;
 use sled::Db;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -13,6 +13,7 @@ use std::time::Instant;
 use tracing::{info, debug};
 
 /// Daemon state with cached hashes
+#[allow(dead_code)]
 pub struct DaemonState {
     root: PathBuf,
     hashes: Arc<RwLock<HashMap<PathBuf, String>>>,

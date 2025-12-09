@@ -138,7 +138,7 @@ impl Scheduler {
             if let Some(result) = rx.recv().await {
                 received += 1;
                 
-                let task_name = result.name.clone();
+                let _task_name = result.name.clone();
                 let task_succeeded = result.status == TaskStatus::Completed;
 
                 if result.status == TaskStatus::Failed && self.fail_fast {

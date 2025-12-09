@@ -6,6 +6,8 @@
 //! - Main: Log output with syntax highlighting
 //! - Footer: Keyboard shortcuts
 
+#![allow(dead_code)] // TUI components ready for integration
+
 use anyhow::Result;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},

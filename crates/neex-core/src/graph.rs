@@ -31,6 +31,7 @@ pub struct WorkspaceNode {
 
 /// Root package.json structure
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 struct RootPackageJson {
     name: Option<String>,
     workspaces: Option<WorkspacesConfig>,
