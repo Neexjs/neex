@@ -1,17 +1,21 @@
 //! Neex CLI - Ultra-fast Monorepo Build Tool
 //!
-//! Inspired by Turbo/Nx - Short, clean commands
+//! Task-First Design: Any task runs directly
 //!
-//! Quick commands: neex dev, neex build, neex test
-//! Filters: --filter=pkg, --changed, --all
+//! Usage:
+//!   neex build              # Run build task
+//!   neex dev --filter=web   # Run dev on web package
+//!   neex test --all         # Run test on all packages
+//!   neex --graph            # Show dependency graph
+//!   neex --login            # Setup cloud cache
 
 use anyhow::Result;
-use clap::{Parser, Subcommand, Args};
+use clap::Parser;
 use dialoguer::{Input, Password, Select, Confirm, theme::ColorfulTheme};
 use neex_core::{
     hash_ast, is_parseable, TaskRunner, Hasher, DepGraph, 
     Scheduler, SchedulerTask, CloudCache, CloudConfig, S3Config,
-    load_config, save_config, get_config_path,
+    load_config, save_config,
 };
 use neex_daemon::{DaemonRequest, DaemonResponse};
 use std::path::PathBuf;
@@ -20,96 +24,88 @@ use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
-/// Neex - Ultra-fast Monorepo Build Tool
+/// Neex - Ultra-fast monorepo build tool
 #[derive(Parser)]
 #[command(name = "neex", version, about = "Ultra-fast monorepo build tool")]
 struct Cli {
-    #[command(subcommand)]
-    command: Option<Commands>,
+    /// Task to run (build, dev, test, lint, etc.)
+    task: Option<String>,
 
-    /// Run any task directly: neex <task>
-    #[arg(trailing_var_arg = true)]
-    task: Vec<String>,
-}
-
-#[derive(Args, Clone)]
-struct RunFlags {
+    // ═══════════════════════════════════════
+    // Execution Flags
+    // ═══════════════════════════════════════
+    
     /// Filter by package name
     #[arg(long, short = 'f')]
     filter: Option<String>,
     
-    /// Only run on changed packages (affected)
+    /// Run on all packages (parallel)
+    #[arg(long, short = 'a')]
+    all: bool,
+    
+    /// Only changed packages
     #[arg(long)]
     changed: bool,
-    
-    /// Run on all packages
-    #[arg(long)]
-    all: bool,
     
     /// Concurrency limit
     #[arg(long, short = 'c')]
     concurrency: Option<usize>,
-}
 
-#[derive(Subcommand)]
-enum Commands {
-    /// Run dev script
-    Dev(RunFlags),
-    /// Run build script
-    Build(RunFlags),
-    /// Run test script
-    Test(RunFlags),
-    /// Run lint script
-    Lint(RunFlags),
-    /// Run any script
-    Run {
-        /// Script name
-        script: String,
-        #[command(flatten)]
-        flags: RunFlags,
-    },
+    // ═══════════════════════════════════════
+    // Special Commands (Flags)
+    // ═══════════════════════════════════════
     
     /// Show dependency graph
-    Graph,
-    /// Show why a package is included in the build
-    Why {
-        /// Package name
-        package: String,
-    },
+    #[arg(long)]
+    graph: bool,
+    
     /// List all packages
-    List,
+    #[arg(long)]
+    list: bool,
     
-    /// Login to cloud cache (S3/R2)
-    Login,
-    /// Logout from cloud cache
-    Logout,
-    /// Clean cache
-    Prune {
-        /// Clean everything (local + cloud)
-        #[arg(long)]
-        all: bool,
-    },
+    /// Show project info
+    #[arg(long)]
+    info: bool,
     
-    /// Show project info (packages, cache, config)
-    Info,
+    /// Show why package is built
+    #[arg(long)]
+    why: Option<String>,
     
-    /// Daemon management
-    Daemon {
-        #[command(subcommand)]
-        action: DaemonAction,
-    },
-    
-    /// Hash a file (AST-aware for JS/TS)
-    Hash {
-        file: PathBuf,
-    },
-}
+    /// Hash a file
+    #[arg(long)]
+    hash: Option<PathBuf>,
 
-#[derive(Subcommand)]
-enum DaemonAction {
-    Start,
-    Stop,
-    Status,
+    // ═══════════════════════════════════════
+    // Cache Commands
+    // ═══════════════════════════════════════
+    
+    /// Login to cloud cache
+    #[arg(long)]
+    login: bool,
+    
+    /// Logout from cloud cache
+    #[arg(long)]
+    logout: bool,
+    
+    /// Clean cache (--prune-all for everything)
+    #[arg(long)]
+    prune: bool,
+    
+    /// Clean all cache (local + cloud)
+    #[arg(long)]
+    prune_all: bool,
+
+    // ═══════════════════════════════════════
+    // Daemon
+    // ═══════════════════════════════════════
+    
+    /// Start daemon
+    #[arg(long)]
+    daemon_start: bool,
+    
+    /// Stop daemon
+    #[arg(long)]
+    daemon_stop: bool,
 }
 
 fn get_socket_path() -> PathBuf {
@@ -124,131 +120,130 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let cwd = std::env::current_dir()?;
 
-    // Handle direct task execution: neex <task>
-    if cli.command.is_none() && !cli.task.is_empty() {
-        let task = cli.task.join(" ");
-        return run_task(&cwd, &task, &RunFlags { 
-            filter: None, changed: false, all: false, concurrency: None 
-        }).await;
+    // ═══════════════════════════════════════
+    // Special Commands (priority order)
+    // ═══════════════════════════════════════
+
+    if cli.graph {
+        return show_graph(&cwd);
+    }
+    
+    if cli.list {
+        return list_packages(&cwd);
+    }
+    
+    if cli.info {
+        return show_info(&cwd).await;
+    }
+    
+    if let Some(pkg) = cli.why {
+        return show_why(&cwd, &pkg);
+    }
+    
+    if let Some(file) = cli.hash {
+        return hash_file(&file);
+    }
+    
+    if cli.login {
+        return cloud_login().await;
+    }
+    
+    if cli.logout {
+        return cloud_logout();
+    }
+    
+    if cli.prune || cli.prune_all {
+        return prune_cache(&cwd, cli.prune_all).await;
+    }
+    
+    if cli.daemon_start {
+        println!("🚀 Start daemon with: cargo run -p neex-daemon");
+        return Ok(());
+    }
+    
+    if cli.daemon_stop {
+        send_request(&get_socket_path(), DaemonRequest::Shutdown).await?;
+        println!("✅ Daemon stopped");
+        return Ok(());
     }
 
-    let Some(command) = cli.command else {
-        println!("Usage: neex <command>");
-        println!();
-        println!("Commands:");
-        println!("  dev      Run dev script");
-        println!("  build    Run build script");
-        println!("  test     Run test script");
-        println!("  graph    Show dependency graph");
-        println!("  login    Setup cloud cache");
-        println!("  info     Show project info");
-        println!();
-        println!("Run 'neex --help' for more options");
+    // ═══════════════════════════════════════
+    // Task Execution
+    // ═══════════════════════════════════════
+
+    let Some(task) = cli.task else {
+        print_usage();
         return Ok(());
     };
 
-    match command {
-        Commands::Dev(flags) => run_task(&cwd, "dev", &flags).await?,
-        Commands::Build(flags) => run_task(&cwd, "build", &flags).await?,
-        Commands::Test(flags) => run_task(&cwd, "test", &flags).await?,
-        Commands::Lint(flags) => run_task(&cwd, "lint", &flags).await?,
-        Commands::Run { script, flags } => run_task(&cwd, &script, &flags).await?,
-        
-        Commands::Graph => show_graph(&cwd)?,
-        Commands::Why { package } => show_why(&cwd, &package)?,
-        Commands::List => list_packages(&cwd)?,
-        
-        Commands::Login => cloud_login().await?,
-        Commands::Logout => cloud_logout()?,
-        Commands::Prune { all } => prune_cache(&cwd, all).await?,
-        
-        Commands::Info => show_info(&cwd).await?,
-        
-        Commands::Daemon { action } => match action {
-            DaemonAction::Start => {
-                println!("🚀 Starting daemon...");
-                println!("   Run: cargo run -p neex-daemon");
-            }
-            DaemonAction::Stop => {
-                send_request(&get_socket_path(), DaemonRequest::Shutdown).await?;
-                println!("✅ Daemon stopped");
-            }
-            DaemonAction::Status => daemon_status().await?,
-        },
-        
-        Commands::Hash { file } => {
-            if !file.exists() {
-                println!("❌ File not found: {}", file.display());
-                return Ok(());
-            }
-            let content = std::fs::read_to_string(&file)?;
-            let hash = if is_parseable(&file) {
-                hash_ast(&file, &content)?
-            } else {
-                neex_core::ast_hasher::hash_raw(&content)?
-            };
-            println!("{}", hash);
-        }
+    // Run task with flags
+    if cli.all {
+        run_all(&cwd, &task, cli.concurrency).await
+    } else if cli.changed {
+        run_changed(&cwd, &task, cli.concurrency).await
+    } else if let Some(pkg) = cli.filter {
+        run_filtered(&cwd, &task, &pkg).await
+    } else {
+        run_task(&cwd, &task).await
     }
-
-    Ok(())
 }
 
-/// Run a task with optional flags
-async fn run_task(cwd: &PathBuf, script: &str, flags: &RunFlags) -> Result<()> {
-    let start = Instant::now();
-
-    // --all: run on all packages in parallel
-    if flags.all {
-        return run_all_packages(cwd, script, flags.concurrency).await;
-    }
-
-    // --changed: run only on affected packages
-    if flags.changed {
-        return run_changed_packages(cwd, script, flags.concurrency).await;
-    }
-
-    // --filter: run on specific package
-    if let Some(ref pkg) = flags.filter {
-        return run_filtered_package(cwd, script, pkg).await;
-    }
-
-    // Default: run in current directory with tiered caching
-    run_with_tiered_cache(cwd, script).await
+fn print_usage() {
+    println!("neex - Ultra-fast monorepo build tool");
+    println!();
+    println!("USAGE:");
+    println!("  neex <task>              Run a task (build, dev, test, etc.)");
+    println!("  neex <task> --all        Run on all packages");
+    println!("  neex <task> --filter=pkg Run on specific package");
+    println!();
+    println!("COMMANDS:");
+    println!("  --graph      Show dependency graph");
+    println!("  --list       List packages");
+    println!("  --info       Project info");
+    println!("  --login      Setup cloud cache");
+    println!("  --prune      Clean cache");
+    println!();
+    println!("EXAMPLES:");
+    println!("  neex build");
+    println!("  neex dev --filter=web");
+    println!("  neex test --all -c 4");
 }
 
-/// Run with tiered caching (L1→L2→L3→L4)
-async fn run_with_tiered_cache(cwd: &PathBuf, script: &str) -> Result<()> {
+// ═══════════════════════════════════════
+// Task Execution
+// ═══════════════════════════════════════
+
+async fn run_task(cwd: &PathBuf, task: &str) -> Result<()> {
     let start = Instant::now();
     let runner = TaskRunner::new(cwd)?;
 
-    let command = match runner.get_script(script)? {
+    let command = match runner.get_script(task)? {
         Some(cmd) => cmd,
         None => {
-            println!("❌ Script '{}' not found", script);
+            println!("❌ Task '{}' not found in package.json", task);
             return Ok(());
         }
     };
 
-    println!("▶ neex {}", script);
+    print!("▶ {}", task);
 
     let hasher = Hasher::new(cwd);
-    let project_hash = hasher.global_hash()?;
-    let cache_key = format!("{}:{}", script, &project_hash[..16]);
+    let hash = hasher.global_hash()?;
+    let key = format!("{}:{}", task, &hash[..16]);
 
-    // L1: Local cache
-    if let Some(cached) = runner.get_cached(&cache_key)? {
-        println!("⚡ cached ({}ms)", start.elapsed().as_millis());
+    // L1: Local
+    if let Some(cached) = runner.get_cached(&key)? {
+        println!(" ⚡ {}ms", start.elapsed().as_millis());
         runner.replay_output(&cached);
         return Ok(());
     }
 
-    // L3: Cloud cache
+    // L3: Cloud
     if let Ok(Some(cloud)) = CloudCache::try_new() {
-        if let Ok(Some(data)) = cloud.download(&cache_key).await {
+        if let Ok(Some(data)) = cloud.download(&key).await {
             if let Ok(output) = serde_json::from_slice::<neex_core::TaskOutput>(&data) {
-                let _ = runner.store_cached(&cache_key, &output);
-                println!("☁️ cloud cached");
+                let _ = runner.store_cached(&key, &output);
+                println!(" ☁️ cloud");
                 runner.replay_output(&output);
                 return Ok(());
             }
@@ -256,376 +251,314 @@ async fn run_with_tiered_cache(cwd: &PathBuf, script: &str) -> Result<()> {
     }
 
     // L4: Execute
+    println!();
     let output = runner.execute(&command).await?;
     
-    let mut output_with_hash = output.clone();
-    output_with_hash.hash = cache_key.clone();
-    runner.store_cached(&cache_key, &output_with_hash)?;
+    let mut out = output.clone();
+    out.hash = key.clone();
+    runner.store_cached(&key, &out)?;
 
-    // Background cloud upload
-    let json_data = serde_json::to_vec(&output_with_hash)?;
-    CloudCache::upload_background(cache_key, json_data);
+    // Background upload
+    if let Ok(json) = serde_json::to_vec(&out) {
+        CloudCache::upload_background(key, json);
+    }
 
-    println!("✓ {} ({}ms)", script, start.elapsed().as_millis());
+    println!("✓ {} {}ms", task, start.elapsed().as_millis());
     Ok(())
 }
 
-/// Run on all packages in parallel
-async fn run_all_packages(cwd: &PathBuf, script: &str, concurrency: Option<usize>) -> Result<()> {
+async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Result<()> {
     let start = Instant::now();
     let graph = DepGraph::from_root(cwd)?;
     
     if graph.package_count() == 0 {
-        println!("❌ No packages found");
+        println!("❌ No packages");
         return Ok(());
     }
 
-    println!("▶ neex {} --all ({} packages)", script, graph.package_count());
+    println!("▶ {} --all ({} packages)", task, graph.package_count());
 
-    let build_order = graph.get_build_order()?;
-    let tasks = create_parallel_tasks(cwd, &build_order, script, &graph);
+    let order = graph.get_build_order()?;
+    let tasks = create_tasks(cwd, &order, task, &graph);
 
-    let concurrency = concurrency.unwrap_or_else(|| {
+    let c = concurrency.unwrap_or_else(|| {
         std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4)
     });
     
-    let scheduler = Scheduler::new(concurrency);
-    let results = scheduler.execute(tasks).await?;
+    let results = Scheduler::new(c).execute(tasks).await?;
 
     let ok = results.iter().filter(|r| r.status == neex_core::TaskStatus::Completed).count();
     let fail = results.iter().filter(|r| r.status == neex_core::TaskStatus::Failed).count();
     
     if fail == 0 {
-        println!("✓ {} packages ({}ms)", ok, start.elapsed().as_millis());
+        println!("✓ {} packages {}ms", ok, start.elapsed().as_millis());
     } else {
-        println!("✗ {} ok, {} failed ({}ms)", ok, fail, start.elapsed().as_millis());
+        println!("✗ {}ok {}fail {}ms", ok, fail, start.elapsed().as_millis());
     }
-
     Ok(())
 }
 
-/// Run only on changed/affected packages
-async fn run_changed_packages(cwd: &PathBuf, script: &str, concurrency: Option<usize>) -> Result<()> {
-    let start = Instant::now();
-    let graph = DepGraph::from_root(cwd)?;
-    
-    // For now, run all (TODO: integrate with git diff)
-    println!("▶ neex {} --changed", script);
-    println!("   (Running all packages - git integration coming soon)");
-    
-    run_all_packages(cwd, script, concurrency).await
+async fn run_changed(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Result<()> {
+    println!("▶ {} --changed (TODO: git integration)", task);
+    run_all(cwd, task, concurrency).await
 }
 
-/// Run on a specific package
-async fn run_filtered_package(cwd: &PathBuf, script: &str, pkg_name: &str) -> Result<()> {
-    let start = Instant::now();
+async fn run_filtered(cwd: &PathBuf, task: &str, pkg: &str) -> Result<()> {
     let graph = DepGraph::from_root(cwd)?;
     
-    let pkg = graph.get_package(pkg_name);
-    if pkg.is_none() {
-        println!("❌ Package '{}' not found", pkg_name);
-        return Ok(());
+    if let Some(p) = graph.get_package(pkg) {
+        println!("▶ {} --filter={}", task, pkg);
+        let path = cwd.join(&p.path);
+        run_task(&path, task).await
+    } else {
+        println!("❌ Package '{}' not found", pkg);
+        Ok(())
     }
-    let pkg = pkg.unwrap();
-
-    println!("▶ neex {} --filter={}", script, pkg_name);
-
-    let pkg_path = cwd.join(&pkg.path);
-    run_with_tiered_cache(&pkg_path, script).await
 }
 
-fn create_parallel_tasks(
+fn create_tasks(
     cwd: &PathBuf,
-    build_order: &[&neex_core::WorkspaceNode],
-    script: &str,
+    order: &[&neex_core::WorkspaceNode],
+    task: &str,
     graph: &DepGraph,
 ) -> Vec<SchedulerTask> {
-    let mut dep_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut deps: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     
     for node in graph.packages() {
-        let pkg_path = cwd.join(&node.path).join("package.json");
-        if let Ok(content) = std::fs::read_to_string(&pkg_path) {
+        let path = cwd.join(&node.path).join("package.json");
+        if let Ok(content) = std::fs::read_to_string(&path) {
             if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
-                let mut deps = Vec::new();
-                if let Some(dep_obj) = pkg.get("dependencies").and_then(|d| d.as_object()) {
-                    for dep_name in dep_obj.keys() {
-                        if graph.get_package(dep_name).is_some() {
-                            deps.push(dep_name.clone());
+                let mut d = Vec::new();
+                if let Some(obj) = pkg.get("dependencies").and_then(|x| x.as_object()) {
+                    for name in obj.keys() {
+                        if graph.get_package(name).is_some() {
+                            d.push(name.clone());
                         }
                     }
                 }
-                dep_map.insert(node.name.clone(), deps);
+                deps.insert(node.name.clone(), d);
             }
         }
     }
 
     let root = Arc::new(cwd.clone());
-    let script_arc = Arc::new(script.to_string());
+    let task_arc = Arc::new(task.to_string());
     
-    build_order.iter().map(|node| {
-        let pkg_name = node.name.clone();
-        let pkg_path = node.path.clone();
-        let deps = dep_map.get(&pkg_name).cloned().unwrap_or_default();
-        let root_clone = Arc::clone(&root);
-        let script_clone = Arc::clone(&script_arc);
+    order.iter().map(|node| {
+        let name = node.name.clone();
+        let path = node.path.clone();
+        let d = deps.get(&name).cloned().unwrap_or_default();
+        let r = Arc::clone(&root);
+        let t = Arc::clone(&task_arc);
         
-        SchedulerTask::new(pkg_name.clone(), deps, move || {
-            let full_path = root_clone.join(&pkg_path);
-            let pkg_json_path = full_path.join("package.json");
-            let content = std::fs::read_to_string(&pkg_json_path)?;
+        SchedulerTask::new(name.clone(), d, move || {
+            let full = r.join(&path);
+            let pkg_path = full.join("package.json");
+            let content = std::fs::read_to_string(&pkg_path)?;
             let pkg: serde_json::Value = serde_json::from_str(&content)?;
             
-            if let Some(command) = pkg.get("scripts")
-                .and_then(|s| s.get(script_clone.as_str()))
-                .and_then(|c| c.as_str())
-            {
-                print!("  {} ", pkg_name);
-                let output = std::process::Command::new("sh")
-                    .arg("-c").arg(command)
-                    .current_dir(&full_path)
+            if let Some(cmd) = pkg.get("scripts").and_then(|s| s.get(t.as_str())).and_then(|c| c.as_str()) {
+                print!("  {} ", name);
+                let out = std::process::Command::new("sh")
+                    .arg("-c").arg(cmd)
+                    .current_dir(&full)
                     .output()?;
                 
-                if !output.status.success() {
+                if out.status.success() {
+                    println!("✓");
+                } else {
                     println!("✗");
                     return Err(anyhow::anyhow!("failed"));
                 }
-                println!("✓");
             }
             Ok(())
         })
     }).collect()
 }
 
-/// Show dependency graph
-fn show_graph(cwd: &PathBuf) -> Result<()> {
-    let graph = DepGraph::from_root(cwd)?;
-    
-    println!("📦 {} packages, {} deps", graph.package_count(), graph.edge_count());
-    println!();
+// ═══════════════════════════════════════
+// Special Commands
+// ═══════════════════════════════════════
 
-    if graph.has_cycle() {
-        println!("⚠️ Circular dependency!");
+fn show_graph(cwd: &PathBuf) -> Result<()> {
+    let g = DepGraph::from_root(cwd)?;
+    
+    println!("📦 {} packages, {} deps", g.package_count(), g.edge_count());
+    
+    if g.has_cycle() {
+        println!("⚠️ Cycle detected!");
         return Ok(());
     }
 
-    match graph.get_build_order() {
-        Ok(order) => {
-            println!("Build order:");
-            for (i, pkg) in order.iter().enumerate() {
-                println!("  {}. {}", i + 1, pkg.name);
-            }
+    if let Ok(order) = g.get_build_order() {
+        println!();
+        for (i, p) in order.iter().enumerate() {
+            println!("  {}. {}", i + 1, p.name);
         }
-        Err(e) => println!("❌ {}", e),
     }
-    
     Ok(())
 }
 
-/// Show why a package is included
-fn show_why(cwd: &PathBuf, package: &str) -> Result<()> {
-    let graph = DepGraph::from_root(cwd)?;
-    let affected = graph.get_affected(package);
+fn list_packages(cwd: &PathBuf) -> Result<()> {
+    let g = DepGraph::from_root(cwd)?;
+    for p in g.packages() {
+        println!("{} ({})", p.name, p.path.display());
+    }
+    Ok(())
+}
+
+fn show_why(cwd: &PathBuf, pkg: &str) -> Result<()> {
+    let g = DepGraph::from_root(cwd)?;
+    let affected = g.get_affected(pkg);
     
     if affected.is_empty() {
-        println!("❌ Package '{}' not found", package);
+        println!("❌ '{}' not found", pkg);
         return Ok(());
     }
     
-    println!("📦 {} affects:", package);
-    for pkg in &affected {
-        if pkg.name != package {
-            println!("  → {}", pkg.name);
+    println!("{} affects:", pkg);
+    for p in &affected {
+        if p.name != pkg {
+            println!("  → {}", p.name);
         }
     }
     Ok(())
 }
 
-/// List all packages
-fn list_packages(cwd: &PathBuf) -> Result<()> {
-    let graph = DepGraph::from_root(cwd)?;
-    
-    println!("Packages:");
-    for pkg in graph.packages() {
-        println!("  {} ({})", pkg.name, pkg.path.display());
-    }
-    
-    Ok(())
-}
-
-/// Cloud login wizard
-async fn cloud_login() -> Result<()> {
-    println!("☁️ Cloud Cache Setup");
-    println!();
-
-    let theme = ColorfulTheme::default();
-
-    let options = &["Cloudflare R2", "AWS S3", "MinIO", "Other"];
-    let selection = Select::with_theme(&theme)
-        .with_prompt("Provider")
-        .items(options)
-        .default(0)
-        .interact()?;
-
-    let endpoint: String = Input::with_theme(&theme)
-        .with_prompt("Endpoint")
-        .interact_text()?;
-
-    let bucket: String = Input::with_theme(&theme)
-        .with_prompt("Bucket")
-        .with_initial_text("neex-cache")
-        .interact_text()?;
-
-    let region: String = Input::with_theme(&theme)
-        .with_prompt("Region")
-        .with_initial_text("auto")
-        .interact_text()?;
-
-    let access_key: String = Input::with_theme(&theme)
-        .with_prompt("Access Key")
-        .interact_text()?;
-
-    let secret_key: String = Password::with_theme(&theme)
-        .with_prompt("Secret Key")
-        .interact()?;
-
-    let config = CloudConfig {
-        s3: Some(S3Config {
-            endpoint, bucket: bucket.clone(), region,
-            access_key, secret_key, enabled: true,
-        }),
-    };
-
-    save_config(&config)?;
-    println!();
-    println!("✅ Saved to ~/.neex/config.json");
-
-    // Test connection
-    print!("Testing... ");
-    match CloudCache::try_new() {
-        Ok(Some(cloud)) => match cloud.ping().await {
-            Ok(true) => println!("✓ Connected to {}", bucket),
-            _ => println!("✗ Connection failed"),
-        },
-        _ => println!("✗ Config error"),
-    }
-
-    Ok(())
-}
-
-/// Cloud logout
-fn cloud_logout() -> Result<()> {
-    let mut config = load_config()?;
-    if let Some(ref mut s3) = config.s3 {
-        s3.enabled = false;
-    }
-    save_config(&config)?;
-    println!("✅ Logged out");
-    Ok(())
-}
-
-/// Prune cache
-async fn prune_cache(cwd: &PathBuf, all: bool) -> Result<()> {
-    if all {
-        let theme = ColorfulTheme::default();
-        let confirm = Confirm::with_theme(&theme)
-            .with_prompt("Delete ALL cache (local + cloud)?")
-            .default(false)
-            .interact()?;
-        if !confirm {
-            return Ok(());
-        }
-    }
-
-    let runner = TaskRunner::new(cwd)?;
-    runner.clear_cache()?;
-    println!("✅ Local cache cleared");
-
-    if all {
-        println!("⚠️ Cloud cleanup requires manual bucket management");
-    }
-
-    Ok(())
-}
-
-/// Show project info
 async fn show_info(cwd: &PathBuf) -> Result<()> {
-    println!("Neex Info");
-    println!();
-
     // Packages
-    let graph = DepGraph::from_root(cwd);
-    match graph {
-        Ok(g) => println!("📦 Packages: {}", g.package_count()),
-        Err(_) => println!("📦 Packages: (not a monorepo)"),
+    let g = DepGraph::from_root(cwd);
+    match g {
+        Ok(g) => println!("📦 {} packages", g.package_count()),
+        Err(_) => println!("📦 not a monorepo"),
     }
 
     // Cache
-    let cache_dir = cwd.join(".neex").join("cache");
-    if cache_dir.exists() {
-        let size = dir_size(&cache_dir)?;
-        println!("💾 Cache: {} KB", size / 1024);
+    let cache = cwd.join(".neex").join("cache");
+    if cache.exists() {
+        let size = dir_size(&cache)?;
+        println!("💾 {} KB cache", size / 1024);
     } else {
-        println!("💾 Cache: empty");
+        println!("💾 no cache");
     }
 
     // Cloud
     let config = load_config()?;
     match config.s3 {
-        Some(s3) if s3.enabled => println!("☁️ Cloud: {} ✓", s3.bucket),
-        Some(_) => println!("☁️ Cloud: disabled"),
-        None => println!("☁️ Cloud: not configured"),
+        Some(s3) if s3.enabled => println!("☁️ {} ✓", s3.bucket),
+        Some(_) => println!("☁️ disabled"),
+        None => println!("☁️ not configured"),
     }
 
     // Daemon
-    print!("🚀 Daemon: ");
+    print!("🚀 ");
     match send_request(&get_socket_path(), DaemonRequest::Stats).await {
-        Ok(_) => println!("running"),
-        Err(_) => println!("stopped"),
+        Ok(_) => println!("daemon running"),
+        Err(_) => println!("daemon stopped"),
     }
 
     Ok(())
 }
 
-async fn daemon_status() -> Result<()> {
-    match send_request(&get_socket_path(), DaemonRequest::Stats).await {
-        Ok(DaemonResponse::Stats { cached_files, db_size }) => {
-            println!("Daemon running");
-            println!("  Files: {}", cached_files);
-            println!("  DB: {} bytes", db_size);
+fn hash_file(file: &PathBuf) -> Result<()> {
+    if !file.exists() {
+        println!("❌ not found");
+        return Ok(());
+    }
+    let content = std::fs::read_to_string(file)?;
+    let hash = if is_parseable(file) {
+        hash_ast(file, &content)?
+    } else {
+        neex_core::ast_hasher::hash_raw(&content)?
+    };
+    println!("{}", hash);
+    Ok(())
+}
+
+// ═══════════════════════════════════════
+// Cache Commands
+// ═══════════════════════════════════════
+
+async fn cloud_login() -> Result<()> {
+    println!("☁️ Cloud Setup");
+    let theme = ColorfulTheme::default();
+
+    let providers = &["Cloudflare R2", "AWS S3", "MinIO", "Other"];
+    let _ = Select::with_theme(&theme)
+        .with_prompt("Provider")
+        .items(providers)
+        .interact()?;
+
+    let endpoint: String = Input::with_theme(&theme).with_prompt("Endpoint").interact_text()?;
+    let bucket: String = Input::with_theme(&theme).with_prompt("Bucket").with_initial_text("neex-cache").interact_text()?;
+    let region: String = Input::with_theme(&theme).with_prompt("Region").with_initial_text("auto").interact_text()?;
+    let access: String = Input::with_theme(&theme).with_prompt("Access Key").interact_text()?;
+    let secret: String = Password::with_theme(&theme).with_prompt("Secret Key").interact()?;
+
+    save_config(&CloudConfig {
+        s3: Some(S3Config { endpoint, bucket: bucket.clone(), region, access_key: access, secret_key: secret, enabled: true }),
+    })?;
+    
+    println!("✅ Saved");
+
+    print!("Testing... ");
+    match CloudCache::try_new() {
+        Ok(Some(c)) => match c.ping().await {
+            Ok(true) => println!("✓ {}", bucket),
+            _ => println!("✗"),
+        },
+        _ => println!("✗"),
+    }
+    Ok(())
+}
+
+fn cloud_logout() -> Result<()> {
+    let mut c = load_config()?;
+    if let Some(ref mut s3) = c.s3 { s3.enabled = false; }
+    save_config(&c)?;
+    println!("✅ Logged out");
+    Ok(())
+}
+
+async fn prune_cache(cwd: &PathBuf, all: bool) -> Result<()> {
+    if all {
+        let theme = ColorfulTheme::default();
+        if !Confirm::with_theme(&theme).with_prompt("Delete ALL?").default(false).interact()? {
+            return Ok(());
         }
-        Err(_) => println!("Daemon not running"),
-        _ => {}
     }
+
+    TaskRunner::new(cwd)?.clear_cache()?;
+    println!("✅ Cache cleared");
     Ok(())
 }
+
+// ═══════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════
 
 fn dir_size(path: &PathBuf) -> Result<u64> {
     let mut size = 0;
     if path.is_dir() {
         for entry in std::fs::read_dir(path)? {
-            let entry = entry?;
-            let meta = entry.metadata()?;
-            if meta.is_file() {
-                size += meta.len();
-            } else if meta.is_dir() {
-                size += dir_size(&entry.path())?;
-            }
+            let e = entry?;
+            let m = e.metadata()?;
+            if m.is_file() { size += m.len(); }
+            else if m.is_dir() { size += dir_size(&e.path())?; }
         }
     }
     Ok(size)
 }
 
-async fn send_request(socket_path: &PathBuf, request: DaemonRequest) -> Result<DaemonResponse> {
-    let mut stream = UnixStream::connect(socket_path).await?;
-    let request_json = serde_json::to_string(&request)?;
-    stream.write_all(request_json.as_bytes()).await?;
+async fn send_request(socket: &PathBuf, req: DaemonRequest) -> Result<DaemonResponse> {
+    let mut stream = UnixStream::connect(socket).await?;
+    stream.write_all(serde_json::to_string(&req)?.as_bytes()).await?;
     stream.write_all(b"\n").await?;
     
-    let (reader, _) = stream.into_split();
-    let mut reader = BufReader::new(reader);
-    let mut response_line = String::new();
-    reader.read_line(&mut response_line).await?;
+    let (r, _) = stream.into_split();
+    let mut reader = BufReader::new(r);
+    let mut line = String::new();
+    reader.read_line(&mut line).await?;
     
-    let response: DaemonResponse = serde_json::from_str(&response_line)?;
-    Ok(response)
+    Ok(serde_json::from_str(&line)?)
 }
