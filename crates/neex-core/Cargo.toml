@@ -22,3 +22,6 @@ tree-sitter-typescript = { workspace = true }
 tokio = { workspace = true }
 sled = { workspace = true }
 glob = { workspace = true }
+rusty-s3 = { workspace = true }
+dirs = { workspace = true }
+reqwest = { workspace = true }

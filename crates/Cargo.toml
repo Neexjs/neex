@@ -65,3 +65,11 @@ mdns-sd = "0.12"
 reqwest = { version = "0.12", features = ["json"] }
 uuid = { version = "1.0", features = ["v4"] }
 gethostname = "0.5"
+
+# Cloud Storage (S3/R2) - rusty-s3 is lighter than aws-sdk
+rusty-s3 = "0.5"
+
+# Interactive CLI
+dialoguer = "0.11"
+dirs = "5.0"
+
