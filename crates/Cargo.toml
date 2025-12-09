@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = [
+members = [ "neex-cli",
     "neex-core",
     "neex-daemon", 
     "neex-napi",
@@ -23,6 +23,9 @@ rayon = "1.10"
 # File walking
 ignore = "0.4"
 walkdir = "2.5"
+
+# CLI parsing
+clap = { version = "4.4", features = ["derive"] }
 
 # Async
 tokio = { version = "1.42", features = ["full"] }

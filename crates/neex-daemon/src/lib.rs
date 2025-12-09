@@ -15,4 +15,4 @@ pub mod server;
 
 pub use watcher::FileWatcher;
 pub use state::DaemonState;
-pub use server::DaemonServer;
+pub use server::{DaemonServer, DaemonRequest, DaemonResponse};
