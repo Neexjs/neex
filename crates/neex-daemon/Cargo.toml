@@ -16,3 +16,8 @@ anyhow = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+mdns-sd = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+gethostname = { workspace = true }
