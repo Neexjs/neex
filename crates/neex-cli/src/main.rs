@@ -15,7 +15,7 @@ use dialoguer::{Input, Password, Select, Confirm, theme::ColorfulTheme};
 use neex_core::{
     hash_ast, is_parseable, TaskRunner, Hasher, DepGraph, 
     Scheduler, SchedulerTask, CloudCache, CloudConfig, S3Config,
-    load_config, save_config,
+    load_config, save_config, SymbolGraph, SymbolCache,
 };
 use neex_daemon::{DaemonRequest, DaemonResponse};
 use std::path::PathBuf;
@@ -46,6 +46,10 @@ struct Cli {
     /// Only changed packages
     #[arg(long)]
     changed: bool,
+    
+    /// Use symbol-level tracking (smart rebuild)
+    #[arg(long)]
+    symbols: bool,
     
     /// Concurrency limit
     #[arg(long, short = 'c')]
@@ -177,7 +181,9 @@ async fn main() -> Result<()> {
     };
 
     // Run task with flags
-    if cli.all {
+    if cli.symbols {
+        run_symbols(&cwd, &task).await
+    } else if cli.all {
         run_all(&cwd, &task, cli.concurrency).await
     } else if cli.changed {
         run_changed(&cwd, &task, cli.concurrency).await
@@ -264,6 +270,88 @@ async fn run_task(cwd: &PathBuf, task: &str) -> Result<()> {
     }
 
     println!("✓ {} {}ms", task, start.elapsed().as_millis());
+    Ok(())
+}
+
+/// Smart rebuild using symbol-level tracking
+async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
+    let start = Instant::now();
+    
+    println!("▶ {} --symbols", task);
+    println!("  Building symbol graph...");
+    
+    // Build symbol graph
+    let graph = match SymbolGraph::build(cwd) {
+        Ok(g) => g,
+        Err(e) => {
+            println!("⚠️ Symbol graph failed: {}", e);
+            println!("  Falling back to normal build...");
+            return run_all(cwd, task, None).await;
+        }
+    };
+    
+    let (pkgs, symbols, consumers) = graph.stats();
+    println!("  📦 {} packages, 🔣 {} symbols, 🔗 {} links", pkgs, symbols, consumers);
+    
+    // Load previous cache
+    let cache_path = cwd.join(".neex").join("symbols.json");
+    let old_cache = SymbolCache::load(&cache_path).unwrap_or_default();
+    
+    // Find changed symbols
+    let changed = graph.get_changed_symbols(&old_cache);
+    
+    if changed.is_empty() {
+        println!();
+        println!("⚡ No symbol changes detected ({} ms)", start.elapsed().as_millis());
+        return Ok(());
+    }
+    
+    println!("  ⚠️ {} symbols changed", changed.len());
+    
+    // Get affected files
+    let affected = graph.get_affected_files(&changed);
+    
+    if affected.is_empty() {
+        println!("  No consumers affected");
+        
+        // Still save new cache
+        let _ = graph.to_cache().save(&cache_path);
+        
+        println!();
+        println!("✓ Symbol check ({} ms)", start.elapsed().as_millis());
+        return Ok(());
+    }
+    
+    println!("  🔨 {} files to rebuild", affected.len());
+    
+    for file in &affected {
+        let name = file.file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        println!("    → {}", name);
+    }
+    
+    // Run task for affected packages
+    let dep_graph = DepGraph::from_root(cwd)?;
+    let mut rebuilt = 0;
+    
+    for file in &affected {
+        // Find which package this file belongs to
+        for pkg in dep_graph.packages() {
+            let pkg_path = cwd.join(&pkg.path);
+            if file.starts_with(&pkg_path) {
+                run_task(&pkg_path, task).await?;
+                rebuilt += 1;
+                break;
+            }
+        }
+    }
+    
+    // Save new cache
+    let _ = graph.to_cache().save(&cache_path);
+    
+    println!();
+    println!("✓ {} packages rebuilt ({} ms)", rebuilt, start.elapsed().as_millis());
     Ok(())
 }
 
