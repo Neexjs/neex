@@ -1,21 +1,19 @@
-
 <div align="center">
  <a href="https://github.com/Neexjs">
 <picture>
 <source media="(prefers-color-scheme: dark)" srcset="https://neex.storage.c2.liara.space/Neex.png">
-<img alt="Neex logo" src="https://neex.storage.c2.liara.space/Neex.png" height="150" style="border-radius: 12px;">
+<img alt="Neex logo" src="https://neex.storage.c2.liara.space/Neex.png" height="150" style="border-radius: 50%;">
 </picture>
 </a>
 
 # Neex
 
-
-
 **Ultra-fast Monorepo Build Tool with Tiered Caching**
 
-[![npm](https://img.shields.io/npm/v/neex.svg)](https://www.npmjs.com/package/neex)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Rust](https://img.shields.io/badge/Built%20with-Rust-orange.svg)](https://www.rust-lang.org/)
+[![NPM version](https://img.shields.io/npm/v/neex.svg?style=for-the-badge&labelColor=000000&color=0066FF&logo=npm&logoWidth=20)](https://www.npmjs.com/package/neex)
+[![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-0066FF.svg?style=for-the-badge&labelColor=000000&logo=rust&logoWidth=20)](https://www.rust-lang.org/)
+[![MIT License](https://img.shields.io/badge/license-MIT-0066FF.svg?style=for-the-badge&labelColor=000000&logo=bookstack&logoColor=white&logoWidth=20)](https://github.com/Neexjs/neex/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-Neex-0066FF.svg?style=for-the-badge&logo=github&labelColor=000000&logoWidth=20)](https://github.com/Neexjs)
 
 [Features](#features) • [Installation](#installation) • [Usage](#usage) • [Benchmarks](#benchmarks) • [Architecture](#architecture)
 
