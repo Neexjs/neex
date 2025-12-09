@@ -19,6 +19,7 @@ pub mod runner;
 pub mod scheduler;
 pub mod cloud;
 pub mod symbols;
+pub mod symbol_graph;
 
 pub use hasher::Hasher;
 pub use ast_hasher::{hash_ast, is_parseable};
@@ -27,3 +28,4 @@ pub use runner::{TaskRunner, TaskOutput};
 pub use scheduler::{Scheduler, SchedulerTask, TaskResult, TaskStatus};
 pub use cloud::{CloudCache, CloudConfig, S3Config, load_config, save_config, get_config_path};
 pub use symbols::{extract_symbols, extract_from_file, FileSymbols, Symbol, SymbolKind, Import};
+pub use symbol_graph::{SymbolGraph, SymbolCache};
