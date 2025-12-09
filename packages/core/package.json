@@ -1,6 +1,6 @@
 {
   "name": "neex",
-  "version": "0.7.45",
+  "version": "0.8.0",
   "description": "Neex - Modern Fullstack Framework Built on Express and Next.js. Fast to Start, Easy to Build, Ready to Deploy",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -74,6 +74,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Neexjs"
+    "url": "https://github.com/Neexjs/neex"
   }
 }

@@ -1,0 +1,137 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            platform: darwin-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            platform: darwin-x64
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            platform: linux-x64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            platform: linux-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            platform: win32-x64
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross (Linux ARM)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cargo install cross
+
+      - name: Build (Standard)
+        if: matrix.target != 'aarch64-unknown-linux-gnu'
+        run: cargo build --release --target ${{ matrix.target }} -p neex-cli
+        working-directory: crates
+
+      - name: Build (Cross)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: cross build --release --target ${{ matrix.target }} -p neex-cli
+        working-directory: crates
+
+      - name: Prepare NPM Package
+        shell: bash
+        run: |
+          mkdir -p npm/@neex/${{ matrix.platform }}/bin
+          
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp crates/target/${{ matrix.target }}/release/neex.exe npm/@neex/${{ matrix.platform }}/bin/
+          else
+            cp crates/target/${{ matrix.target }}/release/neex npm/@neex/${{ matrix.platform }}/bin/
+            chmod +x npm/@neex/${{ matrix.platform }}/bin/neex
+          fi
+          
+          # Create package.json
+          cat > npm/@neex/${{ matrix.platform }}/package.json << EOF
+          {
+            "name": "@neex/${{ matrix.platform }}",
+            "version": "${GITHUB_REF#refs/tags/v}",
+            "os": ["${OS}"],
+            "cpu": ["${CPU}"],
+            "main": "bin/neex"
+          }
+          EOF
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: neex-${{ matrix.platform }}
+          path: npm/@neex/${{ matrix.platform }}
+
+  publish:
+    name: Publish to NPM
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Publish Platform Packages
+        run: |
+          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            cd artifacts/neex-$platform
+            npm publish --access public || true
+            cd ../..
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish Main Package
+        run: |
+          cd npm/neex
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  release:
+    name: GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/neex-darwin-arm64/bin/neex
+            artifacts/neex-darwin-x64/bin/neex
+            artifacts/neex-linux-x64/bin/neex
+            artifacts/neex-linux-arm64/bin/neex
+            artifacts/neex-win32-x64/bin/neex.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

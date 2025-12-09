@@ -1,0 +1,31 @@
+#!/bin/sh
+# Neex CLI Wrapper
+# Falls back to source if binary not available
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+BINARY="$SCRIPT_DIR/neex"
+
+# Check for Windows
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*)
+    BINARY="$SCRIPT_DIR/neex.exe"
+    ;;
+esac
+
+# If binary exists, use it
+if [ -f "$BINARY" ]; then
+  exec "$BINARY" "$@"
+fi
+
+# Fallback: look for cargo-built binary
+if command -v cargo >/dev/null 2>&1; then
+  CARGO_BIN="$HOME/.cargo/bin/neex"
+  if [ -f "$CARGO_BIN" ]; then
+    exec "$CARGO_BIN" "$@"
+  fi
+fi
+
+echo "❌ Neex binary not found"
+echo "   Install via: npm install neex"
+echo "   Or build from source: cargo install neex"
+exit 1

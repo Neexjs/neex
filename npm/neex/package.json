@@ -1,0 +1,42 @@
+{
+  "name": "neex",
+  "version": "0.8.0",
+  "description": "Ultra-fast monorepo build tool with tiered caching",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Neexjs/neex"
+  },
+  "homepage": "https://github.com/Neexjs/neex#readme",
+  "keywords": [
+    "monorepo",
+    "build",
+    "cache",
+    "fast",
+    "rust",
+    "turbo",
+    "nx",
+    "workspace"
+  ],
+  "bin": {
+    "neex": "bin/neex"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "bin",
+    "install.js",
+    "README.md"
+  ],
+  "optionalDependencies": {
+    "@neex/darwin-arm64": "0.8.0",
+    "@neex/darwin-x64": "0.8.0",
+    "@neex/linux-x64": "0.8.0",
+    "@neex/linux-arm64": "0.8.0",
+    "@neex/win32-x64": "0.8.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
