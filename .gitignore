@@ -110,3 +110,7 @@ lerna-debug.log*
 test-project/
 temp-*/
 tmp/
+
+# Rust
+crates/target/
+crates/Cargo.lock
