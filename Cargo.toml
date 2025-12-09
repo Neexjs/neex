@@ -1,0 +1,6 @@
+# Neex Workspace
+# This is the root Cargo.toml that points to the actual workspace
+
+[workspace]
+resolver = "2"
+members = ["crates/*"]
