@@ -9,6 +9,8 @@
 //!   neex --graph            # Show dependency graph
 //!   neex --login            # Setup cloud cache
 
+mod tui;
+
 use anyhow::Result;
 use clap::Parser;
 use dialoguer::{Input, Password, Select, Confirm, theme::ColorfulTheme};
