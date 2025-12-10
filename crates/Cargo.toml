@@ -70,6 +70,6 @@ gethostname = "0.5"
 rusty-s3 = "0.5"
 
 # Interactive CLI
-dialoguer = "0.11"
+dialoguer = "0.12"
 dirs = "5.0"
 
