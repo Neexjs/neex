@@ -1,0 +1,26 @@
+{
+  "name": "@demo/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/server.ts",
+    "build": "echo 'Build completed for @demo/api'",
+    "start": "bun src/server.ts",
+    "lint": "echo 'Lint passed'",
+    "test": "echo 'Tests passed'"
+  },
+  "dependencies": {
+    "@demo/utils": "*",
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "chalk": "^5.6.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/cors": "^2.8.19",
+    "@types/node": "^22.15.17",
+    "typescript": "^5.8.3"
+  }
+}

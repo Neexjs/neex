@@ -1,0 +1,35 @@
+{
+  "name": "neex-demo",
+  "description": "Official Neex demo monorepo - showcasing ultra-fast builds and tiered caching",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "bun@1.3.3",
+  "engines": {
+    "node": ">=18"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "neex dev --all",
+    "build": "neex build --all",
+    "lint": "neex lint --all",
+    "test": "neex test --all",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "graph": "neex --graph",
+    "list": "neex --list",
+    "info": "neex --info",
+    "prune": "neex --prune"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "typescript": "5.9.2"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "neex": "^0.8.9",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.17"
+  }
+}
