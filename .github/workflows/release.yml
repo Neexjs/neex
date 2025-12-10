@@ -56,6 +56,8 @@ jobs:
             echo "No version changes needed"
           else
             git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+            git fetch origin main
+            git rebase origin/main
             git push origin HEAD:main
           fi
 
