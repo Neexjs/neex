@@ -2,8 +2,25 @@
   "name": "@demo/eslint-config",
   "version": "1.0.0",
   "private": true,
+  "exports": {
+    "./base": "./base.js",
+    "./next": "./next.js",
+    "./react-internal": "./react-internal.js"
+  },
   "scripts": {
     "build": "echo 'Config package - no build needed'",
     "lint": "echo 'Lint passed'"
+  },
+  "dependencies": {
+    "@eslint/js": "^9.17.0",
+    "@next/eslint-plugin-next": "^16.0.7",
+    "eslint-config-prettier": "^9.1.0",
+    "typescript-eslint": "^8.20.0",
+    "eslint-plugin-react-hooks": "^5.1.0",
+    "eslint-plugin-react": "^7.37.3",
+    "globals": "^15.14.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
   }
 }
