@@ -2,12 +2,8 @@ name: 👥 Update Contributors
 
 on:
   schedule:
-    - cron: '0 0 * * 0' # Weekly on Sunday
+    - cron: '0 0 * * 0'
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/contributors.yml'
 
 permissions:
   contents: write
@@ -19,52 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-
+      
       - name: 👥 Generate Contributors
-        uses: wow-actions/contributors-list@v1
+        uses: akhilmhdh/contributors-readme-action@v2.3.6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          path: 'CONTRIBUTORS.md'
-          template: |
-            # 👥 Contributors
-            
-            Thanks to all the amazing people who have contributed to Neex! 🎉
-            
-            <!-- CONTRIBUTORS-LIST:START -->
-            {{contributors}}
-            <!-- CONTRIBUTORS-LIST:END -->
-            
-            ## 📊 Contribution Stats
-            
-            - **Total Contributors:** {{contributorsCount}}
-            - **Total Commits:** {{commitsCount}}
-            - **Last Updated:** {{lastUpdate}}
-            
-            ---
-            
-            *Want to contribute? Check out our [Contributing Guide](CONTRIBUTING.md)!*
-          itemTemplate: |
-            <a href="{{url}}">
-              <img src="{{avatar}}" width="50" height="50" alt="{{name}}" title="{{name}} ({{count}} commits)" style="border-radius: 50%;">
-            </a>
-
-      - name: 📝 Create PR if Changes
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: 'docs: update contributors list'
-          title: '👥 Update Contributors List'
-          body: |
-            ## 👥 Contributors Update
-            
-            This PR automatically updates the contributors list.
-            
-            ### Changes
-            - Updated CONTRIBUTORS.md with latest contributor information
-            - Refreshed contribution statistics
-            
-            *This is an automated PR created by the Contributors workflow.*
-          branch: update-contributors
-          delete-branch: true
+          filename: 'CONTRIBUTORS.md'
+          use_username: true
