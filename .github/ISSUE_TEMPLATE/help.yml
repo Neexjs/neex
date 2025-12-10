@@ -1,0 +1,45 @@
+name: ❓ Ask for Help
+description: Get help from the community
+title: "[Help]: "
+labels: ["question", "help"]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Need help? We're here to assist! Please provide details below.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: What do you need help with?
+      description: Describe your issue or question
+      placeholder: I'm trying to configure Neex for my monorepo but...
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional information
+      description: Code snippets, error messages, or config details
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: example
+    attributes:
+      label: Example / Reproduction
+      description: A link to a minimal reproduction is helpful!
+      placeholder: https://github.com/username/repo
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: search
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have searched for similar discussions
+          required: true
