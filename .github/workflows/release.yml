@@ -1,6 +1,14 @@
-name: Release
+name: 🚀 Release
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: true
+      version:
+        description: 'Release version'
+        required: true
   push:
     tags:
       - 'v*'

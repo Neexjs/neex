@@ -1,0 +1,74 @@
+name: 🚀 Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  packages: write
+
+jobs:
+  release-please:
+    name: 📦 Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+      pr_created: ${{ steps.release.outputs.pr_created }}
+    steps:
+      - name: 🎯 Release Please
+        id: release
+        uses: google-github-actions/release-please-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release-type: rust
+          package-name: neex
+          changelog-types: |
+            [
+              {"type":"feat","section":"🚀 Features","hidden":false},
+              {"type":"fix","section":"🐛 Bug Fixes","hidden":false},
+              {"type":"perf","section":"⚡ Performance","hidden":false},
+              {"type":"refactor","section":"♻️ Refactor","hidden":false},
+              {"type":"docs","section":"📚 Documentation","hidden":false},
+              {"type":"test","section":"🧪 Tests","hidden":false},
+              {"type":"build","section":"🏗️ Build","hidden":false},
+              {"type":"ci","section":"👷 CI/CD","hidden":false},
+              {"type":"chore","section":"🔧 Maintenance","hidden":false}
+            ]
+
+  build-and-publish:
+    name: 🏗️ Build & Publish
+    needs: release-please
+    if: needs.release-please.outputs.release_created
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔄 Trigger Release Workflow
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'release.yml',
+              ref: 'main',
+              inputs: {
+                tag: '${{ needs.release-please.outputs.tag_name }}',
+                version: '${{ needs.release-please.outputs.version }}'
+              }
+            });
+
+  notify:
+    name: 📢 Notify Release
+    needs: [release-please, build-and-publish]
+    if: needs.release-please.outputs.release_created
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🎉 Success Notification
+        run: |
+          echo "🎉 Neex ${{ needs.release-please.outputs.version }} released successfully!"
+          echo "📦 NPM: https://www.npmjs.com/package/neex"
+          echo "🏷️ GitHub: https://github.com/Neexjs/neex/releases/tag/${{ needs.release-please.outputs.tag_name }}"
