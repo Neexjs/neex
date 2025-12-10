@@ -163,15 +163,13 @@ jobs:
           EOF
 
           if [ -n "$PREV_TAG" ]; then
-            git log --pretty=format:"* %s by @%an" $PREV_TAG..HEAD | head -20 >> release_notes.md
+            git log --pretty=format:"* %s" $PREV_TAG..HEAD | head -20 >> release_notes.md
 
             echo "" >> release_notes.md
             echo "" >> release_notes.md
             echo "### 👥 Contributors" >> release_notes.md
             echo "" >> release_notes.md
-            git log --pretty=format:"%an" $PREV_TAG..HEAD | sort -u | head -10 | while read name; do
-              echo "* @$name" >> release_notes.md
-            done
+            echo "* @${{ github.actor }}" >> release_notes.md
 
             echo "" >> release_notes.md
             echo "" >> release_notes.md
@@ -206,5 +204,4 @@ jobs:
           name: "Neex v${{ steps.version.outputs.version }}"
           body_path: release_notes.md
           files: release_assets/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
