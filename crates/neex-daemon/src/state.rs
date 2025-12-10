@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::Instant;
-use tracing::{info, debug};
+use tracing::{debug, info};
 
 /// Daemon state with cached hashes
 #[allow(dead_code)]
@@ -27,15 +27,15 @@ impl DaemonState {
     pub fn new(root: impl AsRef<Path>) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
         let db_path = root.join(".neex").join("daemon.db");
-        
+
         // Create parent directory
         if let Some(parent) = db_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         let db = sled::open(&db_path)?;
         let hasher = Hasher::new(&root);
-        
+
         Ok(Self {
             root,
             hashes: Arc::new(RwLock::new(HashMap::new())),
@@ -49,7 +49,7 @@ impl DaemonState {
     pub fn load_from_db(&self) -> Result<usize> {
         let mut count = 0;
         let mut hashes = self.hashes.write().unwrap();
-        
+
         for item in self.db.iter() {
             let (key, value) = item?;
             let path = PathBuf::from(String::from_utf8_lossy(&key).to_string());
@@ -57,7 +57,7 @@ impl DaemonState {
             hashes.insert(path, hash);
             count += 1;
         }
-        
+
         info!("Loaded {} cached hashes from DB", count);
         Ok(count)
     }
@@ -66,28 +66,25 @@ impl DaemonState {
     pub fn full_scan(&mut self) -> Result<usize> {
         let start = Instant::now();
         let files = self.hasher.hash_all()?;
-        
+
         {
             let mut hashes = self.hashes.write().unwrap();
             hashes.clear();
-            
+
             // Batch write to DB
             let mut batch = sled::Batch::default();
-            
+
             for file in &files {
                 hashes.insert(file.path.clone(), file.hash.clone());
-                batch.insert(
-                    file.path.to_string_lossy().as_bytes(),
-                    file.hash.as_bytes(),
-                );
+                batch.insert(file.path.to_string_lossy().as_bytes(), file.hash.as_bytes());
             }
-            
+
             self.db.apply_batch(batch)?;
         }
-        
+
         self.last_scan = Some(start);
         let elapsed = start.elapsed();
-        
+
         info!("Full scan: {} files in {:?}", files.len(), elapsed);
         Ok(files.len())
     }
@@ -95,18 +92,15 @@ impl DaemonState {
     /// Update hash for a single file
     pub fn update_file(&self, path: &Path) -> Result<Option<String>> {
         let hash = self.hasher.hash_file(path)?;
-        
+
         {
             let mut hashes = self.hashes.write().unwrap();
             hashes.insert(path.to_path_buf(), hash.clone());
         }
-        
+
         // Persist to DB
-        self.db.insert(
-            path.to_string_lossy().as_bytes(),
-            hash.as_bytes(),
-        )?;
-        
+        self.db.insert(path.to_string_lossy().as_bytes(), hash.as_bytes())?;
+
         debug!("Updated hash: {:?}", path);
         Ok(Some(hash))
     }
@@ -117,7 +111,7 @@ impl DaemonState {
             let mut hashes = self.hashes.write().unwrap();
             hashes.remove(path);
         }
-        
+
         self.db.remove(path.to_string_lossy().as_bytes())?;
         debug!("Removed: {:?}", path);
         Ok(())
@@ -136,12 +130,10 @@ impl DaemonState {
     /// Get changed files since provided hashes
     pub fn get_changed(&self, old_hashes: &HashMap<PathBuf, String>) -> Vec<PathBuf> {
         let current = self.hashes.read().unwrap();
-        
+
         current
             .iter()
-            .filter(|(path, hash)| {
-                old_hashes.get(*path).map(|h| h != *hash).unwrap_or(true)
-            })
+            .filter(|(path, hash)| old_hashes.get(*path).map(|h| h != *hash).unwrap_or(true))
             .map(|(path, _)| path.clone())
             .collect()
     }

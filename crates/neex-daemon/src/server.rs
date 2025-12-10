@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{UnixListener, UnixStream};
-use tracing::{info, error, debug};
+use tracing::{debug, error, info};
 
 use crate::state::DaemonState;
 use crate::watcher::FileWatcher;
@@ -20,7 +20,9 @@ pub enum DaemonRequest {
     /// Get global hash
     GlobalHash,
     /// Get changed files
-    GetChanged { hashes: std::collections::HashMap<String, String> },
+    GetChanged {
+        hashes: std::collections::HashMap<String, String>,
+    },
     /// Force rescan
     Rescan,
     /// Get stats
@@ -52,18 +54,18 @@ impl DaemonServer {
     pub fn new(root: impl AsRef<Path>) -> Result<Self> {
         let root = root.as_ref();
         let socket_path = root.join(".neex").join("daemon.sock");
-        
+
         // Create directory
         if let Some(parent) = socket_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        
+
         // Remove old socket if exists
         let _ = std::fs::remove_file(&socket_path);
-        
+
         let state = DaemonState::new(root)?;
         let watcher = FileWatcher::new(root)?;
-        
+
         Ok(Self {
             socket_path,
             state,
@@ -100,7 +102,7 @@ impl DaemonServer {
                         }
                     }
                 }
-                
+
                 // Poll for file changes periodically
                 _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
                     self.process_file_changes();
@@ -112,11 +114,10 @@ impl DaemonServer {
     /// Process pending file changes from watcher
     fn process_file_changes(&mut self) {
         let changes = self.watcher.poll();
-        
+
         for change in changes {
             match change.kind {
-                crate::watcher::ChangeKind::Create | 
-                crate::watcher::ChangeKind::Modify => {
+                crate::watcher::ChangeKind::Create | crate::watcher::ChangeKind::Modify => {
                     if let Err(e) = self.state.update_file(&change.path) {
                         debug!("Failed to update {}: {}", change.path.display(), e);
                     }
@@ -135,33 +136,27 @@ impl DaemonServer {
         let (reader, mut writer) = stream.split();
         let mut reader = BufReader::new(reader);
         let mut line = String::new();
-        
+
         reader.read_line(&mut line).await?;
-        
+
         let request: DaemonRequest = serde_json::from_str(&line)?;
         debug!("Request: {:?}", request);
-        
+
         let response = match request {
             DaemonRequest::GetHash { path } => {
                 let hash = self.state.get_hash(std::path::Path::new(&path));
                 DaemonResponse::Hash(hash)
             }
-            DaemonRequest::GlobalHash => {
-                match self.state.global_hash() {
-                    Ok(hash) => DaemonResponse::GlobalHash(hash),
-                    Err(e) => DaemonResponse::Error(e.to_string()),
-                }
-            }
+            DaemonRequest::GlobalHash => match self.state.global_hash() {
+                Ok(hash) => DaemonResponse::GlobalHash(hash),
+                Err(e) => DaemonResponse::Error(e.to_string()),
+            },
             DaemonRequest::GetChanged { hashes } => {
-                let old: std::collections::HashMap<std::path::PathBuf, String> = 
-                    hashes.into_iter()
-                        .map(|(k, v)| (std::path::PathBuf::from(k), v))
-                        .collect();
+                let old: std::collections::HashMap<std::path::PathBuf, String> =
+                    hashes.into_iter().map(|(k, v)| (std::path::PathBuf::from(k), v)).collect();
                 let changed = self.state.get_changed(&old);
                 DaemonResponse::Changed(
-                    changed.into_iter()
-                        .map(|p| p.to_string_lossy().to_string())
-                        .collect()
+                    changed.into_iter().map(|p| p.to_string_lossy().to_string()).collect(),
                 )
             }
             DaemonRequest::Stats => {
@@ -180,11 +175,11 @@ impl DaemonServer {
                 std::process::exit(0);
             }
         };
-        
+
         let response_json = serde_json::to_string(&response)?;
         writer.write_all(response_json.as_bytes()).await?;
         writer.write_all(b"\n").await?;
-        
+
         Ok(())
     }
 }

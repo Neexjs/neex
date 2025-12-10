@@ -50,37 +50,39 @@ pub struct FileSymbols {
 /// Extract symbols from JS/TS source code
 pub fn extract_symbols(source: &str, is_typescript: bool) -> Result<FileSymbols> {
     let mut parser = Parser::new();
-    
+
     let language = if is_typescript {
         tree_sitter_typescript::language_tsx()
     } else {
         tree_sitter_javascript::language()
     };
-    
+
     parser.set_language(&language)?;
 
-    
-    let tree = parser.parse(source, None)
-        .ok_or_else(|| anyhow::anyhow!("Parse failed"))?;
-    
+    let tree = parser.parse(source, None).ok_or_else(|| anyhow::anyhow!("Parse failed"))?;
+
     let root = tree.root_node();
     let bytes = source.as_bytes();
-    
+
     let mut symbols = FileSymbols::default();
-    
+
     // Extract exports
     extract_exports(&mut symbols, root, bytes)?;
-    
+
     // Extract imports
     extract_imports(&mut symbols, root, bytes)?;
-    
+
     Ok(symbols)
 }
 
 /// Extract exported symbols
-fn extract_exports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &[u8]) -> Result<()> {
+fn extract_exports(
+    symbols: &mut FileSymbols,
+    root: tree_sitter::Node,
+    source: &[u8],
+) -> Result<()> {
     let mut cursor = root.walk();
-    
+
     for node in root.children(&mut cursor) {
         // export function name() { ... }
         // export const name = ...
@@ -96,7 +98,7 @@ fn extract_exports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &
                 }
             }
         }
-        
+
         // export default function() { ... }
         if node.kind() == "export_default_declaration" {
             if let Some(child) = node.child(1) {
@@ -107,7 +109,7 @@ fn extract_exports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &
                     _ => SymbolKind::Variable,
                 };
                 let hash = hash_node(child, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind,
@@ -117,18 +119,22 @@ fn extract_exports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Extract from: function/class/const declaration
-fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, source: &[u8]) -> Result<()> {
+fn extract_declaration(
+    symbols: &mut FileSymbols,
+    node: tree_sitter::Node,
+    source: &[u8],
+) -> Result<()> {
     match node.kind() {
         "function_declaration" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 let name = node_text(name_node, source);
                 let hash = hash_node(node, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind: SymbolKind::Function,
@@ -137,12 +143,12 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                 });
             }
         }
-        
+
         "class_declaration" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 let name = node_text(name_node, source);
                 let hash = hash_node(node, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind: SymbolKind::Class,
@@ -151,7 +157,7 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                 });
             }
         }
-        
+
         "lexical_declaration" | "variable_declaration" => {
             // const/let/var declarations
             let mut cursor = node.walk();
@@ -160,7 +166,7 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                     if let Some(name_node) = child.child_by_field_name("name") {
                         let name = node_text(name_node, source);
                         let hash = hash_node(child, source);
-                        
+
                         symbols.exports.push(Symbol {
                             name,
                             kind: SymbolKind::Const,
@@ -171,12 +177,12 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                 }
             }
         }
-        
+
         "type_alias_declaration" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 let name = node_text(name_node, source);
                 let hash = hash_node(node, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind: SymbolKind::Type,
@@ -185,12 +191,12 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                 });
             }
         }
-        
+
         "interface_declaration" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 let name = node_text(name_node, source);
                 let hash = hash_node(node, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind: SymbolKind::Interface,
@@ -199,12 +205,12 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                 });
             }
         }
-        
+
         "enum_declaration" => {
             if let Some(name_node) = node.child_by_field_name("name") {
                 let name = node_text(name_node, source);
                 let hash = hash_node(node, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind: SymbolKind::Enum,
@@ -213,39 +219,47 @@ fn extract_declaration(symbols: &mut FileSymbols, node: tree_sitter::Node, sourc
                 });
             }
         }
-        
+
         _ => {}
     }
-    
+
     Ok(())
 }
 
 /// Extract from: export { a, b, c }
-fn extract_export_clause(symbols: &mut FileSymbols, node: tree_sitter::Node, source: &[u8]) -> Result<()> {
+fn extract_export_clause(
+    symbols: &mut FileSymbols,
+    node: tree_sitter::Node,
+    source: &[u8],
+) -> Result<()> {
     let mut cursor = node.walk();
-    
+
     for child in node.children(&mut cursor) {
         if child.kind() == "export_specifier" {
             if let Some(name_node) = child.child_by_field_name("name") {
                 let name = node_text(name_node, source);
-                
+
                 symbols.exports.push(Symbol {
                     name,
                     kind: SymbolKind::Variable, // Could be anything
-                    hash: String::new(), // No body to hash
+                    hash: String::new(),        // No body to hash
                     line: child.start_position().row + 1,
                 });
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Extract import statements
-fn extract_imports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &[u8]) -> Result<()> {
+fn extract_imports(
+    symbols: &mut FileSymbols,
+    root: tree_sitter::Node,
+    source: &[u8],
+) -> Result<()> {
     let mut cursor = root.walk();
-    
+
     for node in root.children(&mut cursor) {
         if node.kind() == "import_statement" {
             let mut import = Import {
@@ -253,14 +267,14 @@ fn extract_imports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &
                 symbols: Vec::new(),
                 line: node.start_position().row + 1,
             };
-            
+
             // Get source: from "module"
             if let Some(source_node) = node.child_by_field_name("source") {
                 let text = node_text(source_node, source);
                 // Remove quotes
                 import.from = text.trim_matches(|c| c == '"' || c == '\'').to_string();
             }
-            
+
             // Get imported symbols
             let mut child_cursor = node.walk();
             for child in node.children(&mut child_cursor) {
@@ -268,20 +282,20 @@ fn extract_imports(symbols: &mut FileSymbols, root: tree_sitter::Node, source: &
                     extract_import_clause(&mut import, child, source);
                 }
             }
-            
+
             if !import.from.is_empty() {
                 symbols.imports.push(import);
             }
         }
     }
-    
+
     Ok(())
 }
 
 /// Extract symbols from import clause
 fn extract_import_clause(import: &mut Import, node: tree_sitter::Node, source: &[u8]) {
     let mut cursor = node.walk();
-    
+
     for child in node.children(&mut cursor) {
         match child.kind() {
             "identifier" => {
@@ -339,7 +353,7 @@ mod tests {
     fn test_export_function() {
         let code = r#"export function formatDate(d) { return d.toString(); }"#;
         let symbols = extract_symbols(code, false).unwrap();
-        
+
         assert_eq!(symbols.exports.len(), 1);
         assert_eq!(symbols.exports[0].name, "formatDate");
         assert_eq!(symbols.exports[0].kind, SymbolKind::Function);
@@ -350,7 +364,7 @@ mod tests {
     fn test_export_const() {
         let code = r#"export const VERSION = "1.0.0";"#;
         let symbols = extract_symbols(code, false).unwrap();
-        
+
         assert_eq!(symbols.exports.len(), 1);
         assert_eq!(symbols.exports[0].name, "VERSION");
         assert_eq!(symbols.exports[0].kind, SymbolKind::Const);
@@ -360,7 +374,7 @@ mod tests {
     fn test_export_class() {
         let code = r#"export class User { constructor() {} }"#;
         let symbols = extract_symbols(code, false).unwrap();
-        
+
         assert_eq!(symbols.exports.len(), 1);
         assert_eq!(symbols.exports[0].name, "User");
         assert_eq!(symbols.exports[0].kind, SymbolKind::Class);
@@ -374,7 +388,7 @@ mod tests {
             export class Baz {}
         "#;
         let symbols = extract_symbols(code, false).unwrap();
-        
+
         assert_eq!(symbols.exports.len(), 3);
     }
 
@@ -382,17 +396,20 @@ mod tests {
     fn test_import_named() {
         let code = r#"import { formatDate, formatNumber } from "@my/utils";"#;
         let symbols = extract_symbols(code, false).unwrap();
-        
+
         assert_eq!(symbols.imports.len(), 1);
         assert_eq!(symbols.imports[0].from, "@my/utils");
-        assert_eq!(symbols.imports[0].symbols, vec!["formatDate", "formatNumber"]);
+        assert_eq!(
+            symbols.imports[0].symbols,
+            vec!["formatDate", "formatNumber"]
+        );
     }
 
     #[test]
     fn test_import_default() {
         let code = r#"import React from "react";"#;
         let symbols = extract_symbols(code, false).unwrap();
-        
+
         assert_eq!(symbols.imports.len(), 1);
         assert_eq!(symbols.imports[0].from, "react");
         assert_eq!(symbols.imports[0].symbols, vec!["React"]);
@@ -402,7 +419,7 @@ mod tests {
     fn test_typescript_interface() {
         let code = r#"export interface User { name: string; }"#;
         let symbols = extract_symbols(code, true).unwrap();
-        
+
         assert_eq!(symbols.exports.len(), 1);
         assert_eq!(symbols.exports[0].name, "User");
         assert_eq!(symbols.exports[0].kind, SymbolKind::Interface);
@@ -412,10 +429,10 @@ mod tests {
     fn test_hash_changes_with_content() {
         let code1 = r#"export function foo() { return 1; }"#;
         let code2 = r#"export function foo() { return 2; }"#;
-        
+
         let s1 = extract_symbols(code1, false).unwrap();
         let s2 = extract_symbols(code2, false).unwrap();
-        
+
         assert_ne!(s1.exports[0].hash, s2.exports[0].hash);
     }
 }

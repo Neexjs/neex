@@ -16,8 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -37,8 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
@@ -46,9 +44,15 @@ jobs:
         with:
           workspaces: crates
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-        working-directory: crates
+      - name: Format Check (Auto-fix available)
+        run: |
+          cd crates
+          if ! cargo fmt --all -- --check; then
+            echo "❌ Code formatting issues found!"
+            echo "💡 Run: cargo fmt --all"
+            echo "🤖 Or push to trigger auto-format"
+            exit 1
+          fi
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings

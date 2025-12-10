@@ -13,11 +13,10 @@ mod tui;
 
 use anyhow::Result;
 use clap::Parser;
-use dialoguer::{Input, Password, Select, Confirm, theme::ColorfulTheme};
+use dialoguer::{theme::ColorfulTheme, Confirm, Input, Password, Select};
 use neex_core::{
-    hash_ast, is_parseable, TaskRunner, Hasher, DepGraph, 
-    Scheduler, SchedulerTask, CloudCache, CloudConfig, S3Config,
-    load_config, save_config, SymbolGraph, SymbolCache,
+    hash_ast, is_parseable, load_config, save_config, CloudCache, CloudConfig, DepGraph, Hasher,
+    S3Config, Scheduler, SchedulerTask, SymbolCache, SymbolGraph, TaskRunner,
 };
 use neex_daemon::{DaemonRequest, DaemonResponse};
 use std::path::PathBuf;
@@ -36,23 +35,22 @@ struct Cli {
     // ═══════════════════════════════════════
     // Execution Flags
     // ═══════════════════════════════════════
-    
     /// Filter by package name
     #[arg(long, short = 'f')]
     filter: Option<String>,
-    
+
     /// Run on all packages (parallel)
     #[arg(long, short = 'a')]
     all: bool,
-    
+
     /// Only changed packages
     #[arg(long)]
     changed: bool,
-    
+
     /// Use symbol-level tracking (smart rebuild)
     #[arg(long)]
     symbols: bool,
-    
+
     /// Concurrency limit
     #[arg(long, short = 'c')]
     concurrency: Option<usize>,
@@ -60,23 +58,22 @@ struct Cli {
     // ═══════════════════════════════════════
     // Special Commands (Flags)
     // ═══════════════════════════════════════
-    
     /// Show dependency graph
     #[arg(long)]
     graph: bool,
-    
+
     /// List all packages
     #[arg(long)]
     list: bool,
-    
+
     /// Show project info
     #[arg(long)]
     info: bool,
-    
+
     /// Show why package is built
     #[arg(long)]
     why: Option<String>,
-    
+
     /// Hash a file
     #[arg(long)]
     hash: Option<PathBuf>,
@@ -84,19 +81,18 @@ struct Cli {
     // ═══════════════════════════════════════
     // Cache Commands
     // ═══════════════════════════════════════
-    
     /// Login to cloud cache
     #[arg(long)]
     login: bool,
-    
+
     /// Logout from cloud cache
     #[arg(long)]
     logout: bool,
-    
+
     /// Clean cache (--prune-all for everything)
     #[arg(long)]
     prune: bool,
-    
+
     /// Clean all cache (local + cloud)
     #[arg(long)]
     prune_all: bool,
@@ -104,11 +100,10 @@ struct Cli {
     // ═══════════════════════════════════════
     // Daemon
     // ═══════════════════════════════════════
-    
     /// Start daemon
     #[arg(long)]
     daemon_start: bool,
-    
+
     /// Stop daemon
     #[arg(long)]
     daemon_stop: bool,
@@ -133,40 +128,40 @@ async fn main() -> Result<()> {
     if cli.graph {
         return show_graph(&cwd);
     }
-    
+
     if cli.list {
         return list_packages(&cwd);
     }
-    
+
     if cli.info {
         return show_info(&cwd).await;
     }
-    
+
     if let Some(pkg) = cli.why {
         return show_why(&cwd, &pkg);
     }
-    
+
     if let Some(file) = cli.hash {
         return hash_file(&file);
     }
-    
+
     if cli.login {
         return cloud_login().await;
     }
-    
+
     if cli.logout {
         return cloud_logout();
     }
-    
+
     if cli.prune || cli.prune_all {
         return prune_cache(&cwd, cli.prune_all).await;
     }
-    
+
     if cli.daemon_start {
         println!("🚀 Start daemon with: cargo run -p neex-daemon");
         return Ok(());
     }
-    
+
     if cli.daemon_stop {
         send_request(&get_socket_path(), DaemonRequest::Shutdown).await?;
         println!("✅ Daemon stopped");
@@ -261,7 +256,7 @@ async fn run_task(cwd: &PathBuf, task: &str) -> Result<()> {
     // L4: Execute
     println!();
     let output = runner.execute(&command).await?;
-    
+
     let mut out = output.clone();
     out.hash = key.clone();
     runner.store_cached(&key, &out)?;
@@ -278,10 +273,10 @@ async fn run_task(cwd: &PathBuf, task: &str) -> Result<()> {
 /// Smart rebuild using symbol-level tracking
 async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
     let start = Instant::now();
-    
+
     println!("▶ {} --symbols", task);
     println!("  Building symbol graph...");
-    
+
     // Build symbol graph
     let graph = match SymbolGraph::build(cwd) {
         Ok(g) => g,
@@ -291,52 +286,59 @@ async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
             return run_all(cwd, task, None).await;
         }
     };
-    
+
     let (pkgs, symbols, consumers) = graph.stats();
-    println!("  📦 {} packages, 🔣 {} symbols, 🔗 {} links", pkgs, symbols, consumers);
-    
+    println!(
+        "  📦 {} packages, 🔣 {} symbols, 🔗 {} links",
+        pkgs, symbols, consumers
+    );
+
     // Load previous cache
     let cache_path = cwd.join(".neex").join("symbols.json");
     let old_cache = SymbolCache::load(&cache_path).unwrap_or_default();
-    
+
     // Find changed symbols
     let changed = graph.get_changed_symbols(&old_cache);
-    
+
     if changed.is_empty() {
         println!();
-        println!("⚡ No symbol changes detected ({} ms)", start.elapsed().as_millis());
+        println!(
+            "⚡ No symbol changes detected ({} ms)",
+            start.elapsed().as_millis()
+        );
         return Ok(());
     }
-    
+
     println!("  ⚠️ {} symbols changed", changed.len());
-    
+
     // Get affected files
     let affected = graph.get_affected_files(&changed);
-    
+
     if affected.is_empty() {
         println!("  No consumers affected");
-        
+
         // Still save new cache
         let _ = graph.to_cache().save(&cache_path);
-        
+
         println!();
         println!("✓ Symbol check ({} ms)", start.elapsed().as_millis());
         return Ok(());
     }
-    
+
     println!("  🔨 {} files to rebuild", affected.len());
-    
+
     for file in &affected {
-        let name = file.file_name()
+        let name = file
+            .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_else(|| "unknown".to_string());
         println!("    → {}", name);
     }
-    
+
     // Run task for affected packages
     let dep_graph = DepGraph::from_root(cwd)?;
     let mut rebuilt = 0;
-    
+
     for file in &affected {
         // Find which package this file belongs to
         for pkg in dep_graph.packages() {
@@ -348,19 +350,23 @@ async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
             }
         }
     }
-    
+
     // Save new cache
     let _ = graph.to_cache().save(&cache_path);
-    
+
     println!();
-    println!("✓ {} packages rebuilt ({} ms)", rebuilt, start.elapsed().as_millis());
+    println!(
+        "✓ {} packages rebuilt ({} ms)",
+        rebuilt,
+        start.elapsed().as_millis()
+    );
     Ok(())
 }
 
 async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Result<()> {
     let start = Instant::now();
     let graph = DepGraph::from_root(cwd)?;
-    
+
     if graph.package_count() == 0 {
         println!("❌ No packages");
         return Ok(());
@@ -371,15 +377,14 @@ async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Resul
     let order = graph.get_build_order()?;
     let tasks = create_tasks(cwd, &order, task, &graph);
 
-    let c = concurrency.unwrap_or_else(|| {
-        std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4)
-    });
-    
+    let c = concurrency
+        .unwrap_or_else(|| std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4));
+
     let results = Scheduler::new(c).execute(tasks).await?;
 
     let ok = results.iter().filter(|r| r.status == neex_core::TaskStatus::Completed).count();
     let fail = results.iter().filter(|r| r.status == neex_core::TaskStatus::Failed).count();
-    
+
     if fail == 0 {
         println!("✓ {} packages {}ms", ok, start.elapsed().as_millis());
     } else {
@@ -395,7 +400,7 @@ async fn run_changed(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> R
 
 async fn run_filtered(cwd: &PathBuf, task: &str, pkg: &str) -> Result<()> {
     let graph = DepGraph::from_root(cwd)?;
-    
+
     if let Some(p) = graph.get_package(pkg) {
         println!("▶ {} --filter={}", task, pkg);
         let path = cwd.join(&p.path);
@@ -413,7 +418,7 @@ fn create_tasks(
     graph: &DepGraph,
 ) -> Vec<SchedulerTask> {
     let mut deps: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
-    
+
     for node in graph.packages() {
         let path = cwd.join(&node.path).join("package.json");
         if let Ok(content) = std::fs::read_to_string(&path) {
@@ -433,37 +438,43 @@ fn create_tasks(
 
     let root = Arc::new(cwd.clone());
     let task_arc = Arc::new(task.to_string());
-    
-    order.iter().map(|node| {
-        let name = node.name.clone();
-        let path = node.path.clone();
-        let d = deps.get(&name).cloned().unwrap_or_default();
-        let r = Arc::clone(&root);
-        let t = Arc::clone(&task_arc);
-        
-        SchedulerTask::new(name.clone(), d, move || {
-            let full = r.join(&path);
-            let pkg_path = full.join("package.json");
-            let content = std::fs::read_to_string(&pkg_path)?;
-            let pkg: serde_json::Value = serde_json::from_str(&content)?;
-            
-            if let Some(cmd) = pkg.get("scripts").and_then(|s| s.get(t.as_str())).and_then(|c| c.as_str()) {
-                print!("  {} ", name);
-                let out = std::process::Command::new("sh")
-                    .arg("-c").arg(cmd)
-                    .current_dir(&full)
-                    .output()?;
-                
-                if out.status.success() {
-                    println!("✓");
-                } else {
-                    println!("✗");
-                    return Err(anyhow::anyhow!("failed"));
+
+    order
+        .iter()
+        .map(|node| {
+            let name = node.name.clone();
+            let path = node.path.clone();
+            let d = deps.get(&name).cloned().unwrap_or_default();
+            let r = Arc::clone(&root);
+            let t = Arc::clone(&task_arc);
+
+            SchedulerTask::new(name.clone(), d, move || {
+                let full = r.join(&path);
+                let pkg_path = full.join("package.json");
+                let content = std::fs::read_to_string(&pkg_path)?;
+                let pkg: serde_json::Value = serde_json::from_str(&content)?;
+
+                if let Some(cmd) =
+                    pkg.get("scripts").and_then(|s| s.get(t.as_str())).and_then(|c| c.as_str())
+                {
+                    print!("  {} ", name);
+                    let out = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd)
+                        .current_dir(&full)
+                        .output()?;
+
+                    if out.status.success() {
+                        println!("✓");
+                    } else {
+                        println!("✗");
+                        return Err(anyhow::anyhow!("failed"));
+                    }
                 }
-            }
-            Ok(())
+                Ok(())
+            })
         })
-    }).collect()
+        .collect()
 }
 
 // ═══════════════════════════════════════
@@ -472,9 +483,9 @@ fn create_tasks(
 
 fn show_graph(cwd: &PathBuf) -> Result<()> {
     let g = DepGraph::from_root(cwd)?;
-    
+
     println!("📦 {} packages, {} deps", g.package_count(), g.edge_count());
-    
+
     if g.has_cycle() {
         println!("⚠️ Cycle detected!");
         return Ok(());
@@ -500,12 +511,12 @@ fn list_packages(cwd: &PathBuf) -> Result<()> {
 fn show_why(cwd: &PathBuf, pkg: &str) -> Result<()> {
     let g = DepGraph::from_root(cwd)?;
     let affected = g.get_affected(pkg);
-    
+
     if affected.is_empty() {
         println!("❌ '{}' not found", pkg);
         return Ok(());
     }
-    
+
     println!("{} affects:", pkg);
     for p in &affected {
         if p.name != pkg {
@@ -574,21 +585,31 @@ async fn cloud_login() -> Result<()> {
     let theme = ColorfulTheme::default();
 
     let providers = &["Cloudflare R2", "AWS S3", "MinIO", "Other"];
-    let _ = Select::with_theme(&theme)
-        .with_prompt("Provider")
-        .items(providers)
-        .interact()?;
+    let _ = Select::with_theme(&theme).with_prompt("Provider").items(providers).interact()?;
 
     let endpoint: String = Input::with_theme(&theme).with_prompt("Endpoint").interact_text()?;
-    let bucket: String = Input::with_theme(&theme).with_prompt("Bucket").with_initial_text("neex-cache").interact_text()?;
-    let region: String = Input::with_theme(&theme).with_prompt("Region").with_initial_text("auto").interact_text()?;
+    let bucket: String = Input::with_theme(&theme)
+        .with_prompt("Bucket")
+        .with_initial_text("neex-cache")
+        .interact_text()?;
+    let region: String = Input::with_theme(&theme)
+        .with_prompt("Region")
+        .with_initial_text("auto")
+        .interact_text()?;
     let access: String = Input::with_theme(&theme).with_prompt("Access Key").interact_text()?;
     let secret: String = Password::with_theme(&theme).with_prompt("Secret Key").interact()?;
 
     save_config(&CloudConfig {
-        s3: Some(S3Config { endpoint, bucket: bucket.clone(), region, access_key: access, secret_key: secret, enabled: true }),
+        s3: Some(S3Config {
+            endpoint,
+            bucket: bucket.clone(),
+            region,
+            access_key: access,
+            secret_key: secret,
+            enabled: true,
+        }),
     })?;
-    
+
     println!("✅ Saved");
 
     print!("Testing... ");
@@ -604,7 +625,9 @@ async fn cloud_login() -> Result<()> {
 
 fn cloud_logout() -> Result<()> {
     let mut c = load_config()?;
-    if let Some(ref mut s3) = c.s3 { s3.enabled = false; }
+    if let Some(ref mut s3) = c.s3 {
+        s3.enabled = false;
+    }
     save_config(&c)?;
     println!("✅ Logged out");
     Ok(())
@@ -613,7 +636,11 @@ fn cloud_logout() -> Result<()> {
 async fn prune_cache(cwd: &PathBuf, all: bool) -> Result<()> {
     if all {
         let theme = ColorfulTheme::default();
-        if !Confirm::with_theme(&theme).with_prompt("Delete ALL?").default(false).interact()? {
+        if !Confirm::with_theme(&theme)
+            .with_prompt("Delete ALL?")
+            .default(false)
+            .interact()?
+        {
             return Ok(());
         }
     }
@@ -633,8 +660,11 @@ fn dir_size(path: &PathBuf) -> Result<u64> {
         for entry in std::fs::read_dir(path)? {
             let e = entry?;
             let m = e.metadata()?;
-            if m.is_file() { size += m.len(); }
-            else if m.is_dir() { size += dir_size(&e.path())?; }
+            if m.is_file() {
+                size += m.len();
+            } else if m.is_dir() {
+                size += dir_size(&e.path())?;
+            }
         }
     }
     Ok(size)
@@ -644,11 +674,11 @@ async fn send_request(socket: &PathBuf, req: DaemonRequest) -> Result<DaemonResp
     let mut stream = UnixStream::connect(socket).await?;
     stream.write_all(serde_json::to_string(&req)?.as_bytes()).await?;
     stream.write_all(b"\n").await?;
-    
+
     let (r, _) = stream.into_split();
     let mut reader = BufReader::new(r);
     let mut line = String::new();
     reader.read_line(&mut line).await?;
-    
+
     Ok(serde_json::from_str(&line)?)
 }

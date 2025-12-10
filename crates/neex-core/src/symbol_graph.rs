@@ -8,11 +8,11 @@
 //!   formatDate() changed → only rebuild files that import formatDate
 //!   (NOT all files that import the package)
 
+use crate::symbols::{extract_from_file, Symbol};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
-use crate::symbols::{extract_from_file, Symbol};
 
 /// Unique identifier for a symbol: "package:symbol_name"
 pub type SymbolId = String;
@@ -22,10 +22,10 @@ pub type SymbolId = String;
 pub struct SymbolGraph {
     /// Symbol -> files that import it
     pub consumers: HashMap<SymbolId, HashSet<PathBuf>>,
-    
+
     /// File -> its exported symbols with hashes
     pub exports: HashMap<PathBuf, Vec<Symbol>>,
-    
+
     /// Package name -> file path (for resolving imports)
     pub packages: HashMap<String, PathBuf>,
 }
@@ -41,16 +41,16 @@ impl SymbolGraph {
     /// Build graph from workspace root
     pub fn build(root: &Path) -> Result<Self> {
         let mut graph = SymbolGraph::default();
-        
+
         // Find all packages
         graph.discover_packages(root)?;
-        
+
         // Extract symbols from all JS/TS files
         graph.extract_all_symbols(root)?;
-        
+
         // Build consumer map
         graph.build_consumers(root)?;
-        
+
         Ok(graph)
     }
 
@@ -65,7 +65,8 @@ impl SymbolGraph {
         let pkg: serde_json::Value = serde_json::from_str(&content)?;
 
         // Get workspaces
-        let workspaces = pkg.get("workspaces")
+        let workspaces = pkg
+            .get("workspaces")
             .and_then(|w| w.as_array())
             .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_default();
@@ -73,14 +74,15 @@ impl SymbolGraph {
         for pattern in workspaces {
             let pattern_path = root.join(pattern);
             let _base = pattern_path.parent().unwrap_or(root);
-            
+
             if let Ok(entries) = glob::glob(&pattern_path.to_string_lossy()) {
                 for entry in entries.flatten() {
                     if entry.is_dir() {
                         let pkg_json = entry.join("package.json");
                         if pkg_json.exists() {
                             if let Ok(content) = std::fs::read_to_string(&pkg_json) {
-                                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content)
+                                {
                                     if let Some(name) = pkg.get("name").and_then(|n| n.as_str()) {
                                         self.packages.insert(name.to_string(), entry.clone());
                                     }
@@ -100,13 +102,13 @@ impl SymbolGraph {
         for (_, pkg_path) in &self.packages.clone() {
             self.extract_package_symbols(pkg_path)?;
         }
-        
+
         // Also scan root src if exists
         let src_dir = root.join("src");
         if src_dir.exists() {
             self.scan_directory(&src_dir)?;
         }
-        
+
         Ok(())
     }
 
@@ -116,7 +118,7 @@ impl SymbolGraph {
         if src.exists() {
             self.scan_directory(&src)?;
         }
-        
+
         // Check index files
         for index in &["index.ts", "index.tsx", "index.js", "index.jsx"] {
             let path = pkg_path.join(index);
@@ -124,7 +126,7 @@ impl SymbolGraph {
                 self.extract_file(&path)?;
             }
         }
-        
+
         Ok(())
     }
 
@@ -134,10 +136,7 @@ impl SymbolGraph {
             return Ok(());
         }
 
-        for entry in walkdir::WalkDir::new(dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in walkdir::WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -146,7 +145,7 @@ impl SymbolGraph {
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -167,12 +166,12 @@ impl SymbolGraph {
         for (_, pkg_path) in &self.packages.clone() {
             self.scan_imports(pkg_path, root)?;
         }
-        
+
         let src = root.join("src");
         if src.exists() {
             self.scan_imports(&src, root)?;
         }
-        
+
         Ok(())
     }
 
@@ -182,10 +181,7 @@ impl SymbolGraph {
             return Ok(());
         }
 
-        for entry in walkdir::WalkDir::new(dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-        {
+        for entry in walkdir::WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
             let path = entry.path();
             if path.is_file() {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -194,27 +190,24 @@ impl SymbolGraph {
                 }
             }
         }
-        
+
         Ok(())
     }
 
     /// Process imports in a file
     fn process_imports(&mut self, file: &Path) -> Result<()> {
         let symbols = extract_from_file(file)?;
-        
+
         for import in symbols.imports {
             // Check if import is from a known package
             if let Some(_pkg_path) = self.packages.get(&import.from) {
                 for symbol_name in &import.symbols {
                     let id = format!("{}:{}", import.from, symbol_name);
-                    self.consumers
-                        .entry(id)
-                        .or_default()
-                        .insert(file.to_path_buf());
+                    self.consumers.entry(id).or_default().insert(file.to_path_buf());
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -230,58 +223,60 @@ impl SymbolGraph {
     /// Get all exported symbols from all packages
     pub fn get_all_symbols(&self) -> Vec<(SymbolId, String)> {
         let mut result = Vec::new();
-        
+
         for (path, symbols) in &self.exports {
             // Find package name for this path
-            let pkg_name = self.packages.iter()
+            let pkg_name = self
+                .packages
+                .iter()
                 .find(|(_, p)| path.starts_with(p))
                 .map(|(name, _)| name.clone())
                 .unwrap_or_else(|| path.to_string_lossy().to_string());
-            
+
             for symbol in symbols {
                 let id = format!("{}:{}", pkg_name, symbol.name);
                 result.push((id, symbol.hash.clone()));
             }
         }
-        
+
         result
     }
 
     /// Get changed symbols by comparing with previous cache
     pub fn get_changed_symbols(&self, cache: &SymbolCache) -> Vec<SymbolId> {
         let mut changed = Vec::new();
-        
+
         for (id, hash) in self.get_all_symbols() {
             match cache.hashes.get(&id) {
                 Some(old_hash) if old_hash == &hash => {} // Same
-                _ => changed.push(id), // New or changed
+                _ => changed.push(id),                    // New or changed
             }
         }
-        
+
         changed
     }
 
     /// Get all files affected by changed symbols
     pub fn get_affected_files(&self, changed: &[SymbolId]) -> Vec<PathBuf> {
         let mut affected = HashSet::new();
-        
+
         for id in changed {
             if let Some(consumers) = self.consumers.get(id) {
                 affected.extend(consumers.iter().cloned());
             }
         }
-        
+
         affected.into_iter().collect()
     }
 
     /// Create cache from current state
     pub fn to_cache(&self) -> SymbolCache {
         let mut cache = SymbolCache::default();
-        
+
         for (id, hash) in self.get_all_symbols() {
             cache.hashes.insert(id, hash);
         }
-        
+
         cache
     }
 
@@ -324,27 +319,39 @@ mod tests {
         let root = dir.path();
 
         // Root package.json
-        fs::write(root.join("package.json"), r#"
+        fs::write(
+            root.join("package.json"),
+            r#"
             {"workspaces": ["packages/*"]}
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         // Utils package
         let utils = root.join("packages/utils");
         fs::create_dir_all(&utils).unwrap();
         fs::write(utils.join("package.json"), r#"{"name": "@my/utils"}"#).unwrap();
-        fs::write(utils.join("index.ts"), r#"
+        fs::write(
+            utils.join("index.ts"),
+            r#"
             export function formatDate() { return "date"; }
             export function formatNumber() { return 123; }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         // Web package
         let web = root.join("packages/web");
         fs::create_dir_all(&web).unwrap();
         fs::write(web.join("package.json"), r#"{"name": "@my/web"}"#).unwrap();
-        fs::write(web.join("index.ts"), r#"
+        fs::write(
+            web.join("index.ts"),
+            r#"
             import { formatDate } from "@my/utils";
             export function App() { return formatDate(); }
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         dir
     }
@@ -353,7 +360,7 @@ mod tests {
     fn test_build_graph() {
         let dir = create_test_monorepo();
         let graph = SymbolGraph::build(dir.path()).unwrap();
-        
+
         assert_eq!(graph.packages.len(), 2);
         assert!(graph.packages.contains_key("@my/utils"));
         assert!(graph.packages.contains_key("@my/web"));
@@ -363,10 +370,10 @@ mod tests {
     fn test_get_consumers() {
         let dir = create_test_monorepo();
         let graph = SymbolGraph::build(dir.path()).unwrap();
-        
+
         let consumers = graph.get_consumers("@my/utils", "formatDate");
         assert_eq!(consumers.len(), 1);
-        
+
         let consumers = graph.get_consumers("@my/utils", "formatNumber");
         assert_eq!(consumers.len(), 0); // Not imported anywhere
     }
@@ -376,7 +383,7 @@ mod tests {
         let dir = create_test_monorepo();
         let graph = SymbolGraph::build(dir.path()).unwrap();
         let cache = graph.to_cache();
-        
+
         // Should have symbols from utils
         assert!(cache.hashes.keys().any(|k| k.contains("formatDate")));
     }
@@ -385,12 +392,12 @@ mod tests {
     fn test_changed_detection() {
         let dir = create_test_monorepo();
         let graph = SymbolGraph::build(dir.path()).unwrap();
-        
+
         // First run - everything is "changed"
         let cache = SymbolCache::default();
         let changed = graph.get_changed_symbols(&cache);
         assert!(!changed.is_empty());
-        
+
         // Second run with same cache - nothing changed
         let cache = graph.to_cache();
         let changed = graph.get_changed_symbols(&cache);

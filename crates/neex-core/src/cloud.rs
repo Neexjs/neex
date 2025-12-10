@@ -30,7 +30,9 @@ pub struct S3Config {
     pub enabled: bool,
 }
 
-fn default_true() -> bool { true }
+fn default_true() -> bool {
+    true
+}
 
 impl Default for S3Config {
     fn default() -> Self {
@@ -59,7 +61,7 @@ pub fn load_config() -> Result<CloudConfig> {
     if !path.exists() {
         return Ok(CloudConfig::default());
     }
-    
+
     let content = std::fs::read_to_string(&path)?;
     let config: CloudConfig = serde_json::from_str(&content)?;
     Ok(config)
@@ -68,14 +70,14 @@ pub fn load_config() -> Result<CloudConfig> {
 /// Save cloud config to disk
 pub fn save_config(config: &CloudConfig) -> Result<()> {
     let path = get_config_path();
-    
+
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    
+
     let content = serde_json::to_string_pretty(config)?;
     std::fs::write(&path, content)?;
-    
+
     tracing::info!("Config saved to {:?}", path);
     Ok(())
 }
@@ -91,9 +93,8 @@ pub struct CloudCache {
 impl CloudCache {
     /// Create new cloud cache from config
     pub fn from_config(config: &S3Config) -> Result<Self> {
-        let endpoint = config.endpoint.parse()
-            .map_err(|_| anyhow!("Invalid endpoint URL"))?;
-        
+        let endpoint = config.endpoint.parse().map_err(|_| anyhow!("Invalid endpoint URL"))?;
+
         let bucket = Bucket::new(
             endpoint,
             UrlStyle::Path,
@@ -101,10 +102,7 @@ impl CloudCache {
             config.region.clone(),
         )?;
 
-        let credentials = Credentials::new(
-            config.access_key.clone(),
-            config.secret_key.clone(),
-        );
+        let credentials = Credentials::new(config.access_key.clone(), config.secret_key.clone());
 
         let client = reqwest::Client::new();
 
@@ -119,7 +117,7 @@ impl CloudCache {
     /// Create from loaded config
     pub fn try_new() -> Result<Option<Self>> {
         let config = load_config()?;
-        
+
         match config.s3 {
             Some(s3_config) if s3_config.enabled && !s3_config.endpoint.is_empty() => {
                 let cache = Self::from_config(&s3_config)?;
@@ -142,7 +140,9 @@ impl CloudCache {
         }
 
         let key = format!("artifacts/{}", hash);
-        let url = self.bucket.put_object(Some(&self.credentials), &key)
+        let url = self
+            .bucket
+            .put_object(Some(&self.credentials), &key)
             .sign(Duration::from_secs(300));
 
         self.client
@@ -178,11 +178,13 @@ impl CloudCache {
         }
 
         let key = format!("artifacts/{}", hash);
-        let url = self.bucket.get_object(Some(&self.credentials), &key)
+        let url = self
+            .bucket
+            .get_object(Some(&self.credentials), &key)
             .sign(Duration::from_secs(300));
 
         let resp = self.client.get(url).send().await?;
-        
+
         if resp.status().is_success() {
             let data = resp.bytes().await?.to_vec();
             tracing::info!("☁️ Downloaded: {}", hash);
@@ -235,7 +237,7 @@ mod tests {
 
         let json = serde_json::to_string(&config).unwrap();
         assert!(json.contains("neex-cache"));
-        
+
         let parsed: CloudConfig = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed.s3.unwrap().bucket, "neex-cache");
     }
