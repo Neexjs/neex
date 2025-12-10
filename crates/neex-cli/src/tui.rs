@@ -244,7 +244,11 @@ fn draw_header(f: &mut Frame, area: Rect, state: &TuiState, cpu: f32, mem: u64) 
 
     // Logo
     let logo = Paragraph::new("🚀 NEEX")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(logo, header_chunks[0]);
 

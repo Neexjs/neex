@@ -59,7 +59,9 @@ pub fn extract_symbols(source: &str, is_typescript: bool) -> Result<FileSymbols>
 
     parser.set_language(&language)?;
 
-    let tree = parser.parse(source, None).ok_or_else(|| anyhow::anyhow!("Parse failed"))?;
+    let tree = parser
+        .parse(source, None)
+        .ok_or_else(|| anyhow::anyhow!("Parse failed"))?;
 
     let root = tree.root_node();
     let bytes = source.as_bytes();
@@ -316,7 +318,9 @@ fn extract_import_clause(import: &mut Import, node: tree_sitter::Node, source: &
             "namespace_import" => {
                 // import * as foo from "..."
                 if let Some(alias) = child.child(2) {
-                    import.symbols.push(format!("* as {}", node_text(alias, source)));
+                    import
+                        .symbols
+                        .push(format!("* as {}", node_text(alias, source)));
                 }
             }
             _ => {}

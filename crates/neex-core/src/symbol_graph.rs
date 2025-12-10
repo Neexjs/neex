@@ -136,7 +136,10 @@ impl SymbolGraph {
             return Ok(());
         }
 
-        for entry in walkdir::WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let path = entry.path();
             if path.is_file() {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -181,7 +184,10 @@ impl SymbolGraph {
             return Ok(());
         }
 
-        for entry in walkdir::WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let path = entry.path();
             if path.is_file() {
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
@@ -203,7 +209,10 @@ impl SymbolGraph {
             if let Some(_pkg_path) = self.packages.get(&import.from) {
                 for symbol_name in &import.symbols {
                     let id = format!("{}:{}", import.from, symbol_name);
-                    self.consumers.entry(id).or_default().insert(file.to_path_buf());
+                    self.consumers
+                        .entry(id)
+                        .or_default()
+                        .insert(file.to_path_buf());
                 }
             }
         }

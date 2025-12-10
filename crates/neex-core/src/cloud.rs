@@ -93,7 +93,10 @@ pub struct CloudCache {
 impl CloudCache {
     /// Create new cloud cache from config
     pub fn from_config(config: &S3Config) -> Result<Self> {
-        let endpoint = config.endpoint.parse().map_err(|_| anyhow!("Invalid endpoint URL"))?;
+        let endpoint = config
+            .endpoint
+            .parse()
+            .map_err(|_| anyhow!("Invalid endpoint URL"))?;
 
         let bucket = Bucket::new(
             endpoint,

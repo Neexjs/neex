@@ -152,11 +152,16 @@ impl DaemonServer {
                 Err(e) => DaemonResponse::Error(e.to_string()),
             },
             DaemonRequest::GetChanged { hashes } => {
-                let old: std::collections::HashMap<std::path::PathBuf, String> =
-                    hashes.into_iter().map(|(k, v)| (std::path::PathBuf::from(k), v)).collect();
+                let old: std::collections::HashMap<std::path::PathBuf, String> = hashes
+                    .into_iter()
+                    .map(|(k, v)| (std::path::PathBuf::from(k), v))
+                    .collect();
                 let changed = self.state.get_changed(&old);
                 DaemonResponse::Changed(
-                    changed.into_iter().map(|p| p.to_string_lossy().to_string()).collect(),
+                    changed
+                        .into_iter()
+                        .map(|p| p.to_string_lossy().to_string())
+                        .collect(),
                 )
             }
             DaemonRequest::Stats => {
