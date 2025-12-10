@@ -19,7 +19,7 @@ use neex_core::{
     S3Config, Scheduler, SchedulerTask, SymbolCache, SymbolGraph, TaskRunner,
 };
 use neex_daemon::{DaemonRequest, DaemonResponse};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -421,7 +421,7 @@ async fn run_filtered(cwd: &PathBuf, task: &str, pkg: &str) -> Result<()> {
 }
 
 fn create_tasks(
-    cwd: &PathBuf,
+    cwd: &Path,
     order: &[&neex_core::WorkspaceNode],
     task: &str,
     graph: &DepGraph,
@@ -445,7 +445,7 @@ fn create_tasks(
         }
     }
 
-    let root = Arc::new(cwd.clone());
+    let root: Arc<PathBuf> = Arc::new(cwd.to_path_buf());
     let task_arc = Arc::new(task.to_string());
 
     order

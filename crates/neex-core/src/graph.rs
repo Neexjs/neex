@@ -125,11 +125,9 @@ impl DepGraph {
             // Handle glob patterns like "packages/*"
             let glob_pattern = self.root.join(&pattern).to_string_lossy().to_string();
 
-            for entry in glob::glob(&glob_pattern)? {
-                if let Ok(path) = entry {
-                    if path.is_dir() && path.join("package.json").exists() {
-                        workspaces.push(path);
-                    }
+            for path in glob::glob(&glob_pattern)?.flatten() {
+                if path.is_dir() && path.join("package.json").exists() {
+                    workspaces.push(path);
                 }
             }
         }

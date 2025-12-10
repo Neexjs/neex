@@ -3,15 +3,15 @@ name: 🚀 Release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Release tag'
-        required: true
       version:
-        description: 'Release version'
+        description: 'Release version (e.g., 0.8.1)'
         required: true
   push:
     tags:
       - 'v*'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -61,23 +61,28 @@ jobs:
       - name: Prepare NPM Package
         shell: bash
         run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
           mkdir -p npm/@neex/${{ matrix.platform }}/bin
-          
+
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp crates/target/${{ matrix.target }}/release/neex.exe npm/@neex/${{ matrix.platform }}/bin/
           else
             cp crates/target/${{ matrix.target }}/release/neex npm/@neex/${{ matrix.platform }}/bin/
             chmod +x npm/@neex/${{ matrix.platform }}/bin/neex
           fi
-          
-          # Create package.json
+
+          # Create package.json for platform
           cat > npm/@neex/${{ matrix.platform }}/package.json << EOF
           {
             "name": "@neex/${{ matrix.platform }}",
-            "version": "${GITHUB_REF#refs/tags/v}",
-            "os": ["${OS}"],
-            "cpu": ["${CPU}"],
-            "main": "bin/neex"
+            "version": "$VERSION",
+            "description": "Neex binary for ${{ matrix.platform }}",
+            "main": "bin/neex",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/Neexjs/neex"
+            },
+            "license": "MIT"
           }
           EOF
 
@@ -104,6 +109,16 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Update version in npm/neex
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          cd npm/neex
+          sed -i "s/\"version\": \".*\"/\"version\": \"$VERSION\"/" package.json
+          # Update optionalDependencies versions
+          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
+            sed -i "s/\"@neex\/$platform\": \".*\"/\"@neex\/$platform\": \"$VERSION\"/" package.json
+          done
+
       - name: Publish Platform Packages
         run: |
           for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
@@ -127,14 +142,39 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
 
+      - name: Generate Changelog
+        id: changelog
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          PREV_TAG=$(git describe --abbrev=0 --tags HEAD^ 2>/dev/null || echo "")
+
+          echo "## Neex v$VERSION" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "### What's Changed" >> CHANGELOG.md
+            git log --pretty=format:"* %s by @%an" $PREV_TAG..HEAD >> CHANGELOG.md
+          else
+            echo "🎉 Initial release!" >> CHANGELOG.md
+          fi
+
+          echo "" >> CHANGELOG.md
+          echo "### Installation" >> CHANGELOG.md
+          echo '```bash' >> CHANGELOG.md
+          echo "npm install -g neex" >> CHANGELOG.md
+          echo '```' >> CHANGELOG.md
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
+          body_path: CHANGELOG.md
           files: |
             artifacts/neex-darwin-arm64/bin/neex
             artifacts/neex-darwin-x64/bin/neex

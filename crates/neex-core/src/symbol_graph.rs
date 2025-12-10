@@ -99,7 +99,7 @@ impl SymbolGraph {
 
     /// Extract symbols from all JS/TS files
     fn extract_all_symbols(&mut self, root: &Path) -> Result<()> {
-        for (_, pkg_path) in &self.packages.clone() {
+        for pkg_path in self.packages.clone().values() {
             self.extract_package_symbols(pkg_path)?;
         }
 
@@ -154,11 +154,8 @@ impl SymbolGraph {
 
     /// Extract symbols from a single file
     fn extract_file(&mut self, path: &Path) -> Result<()> {
-        match extract_from_file(path) {
-            Ok(symbols) => {
-                self.exports.insert(path.to_path_buf(), symbols.exports);
-            }
-            Err(_) => {} // Skip unparseable files
+        if let Ok(symbols) = extract_from_file(path) {
+            self.exports.insert(path.to_path_buf(), symbols.exports);
         }
         Ok(())
     }
@@ -166,7 +163,7 @@ impl SymbolGraph {
     /// Build consumer map from imports
     fn build_consumers(&mut self, root: &Path) -> Result<()> {
         // Scan all files again for imports
-        for (_, pkg_path) in &self.packages.clone() {
+        for pkg_path in self.packages.clone().values() {
             self.scan_imports(pkg_path, root)?;
         }
 

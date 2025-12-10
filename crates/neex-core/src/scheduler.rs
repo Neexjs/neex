@@ -6,7 +6,9 @@
 //! - Fail-fast: stops on first error
 //! - Respects dependency graph from Phase 5
 
-use anyhow::{anyhow, Result};
+#[cfg(test)]
+use anyhow::anyhow;
+use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
