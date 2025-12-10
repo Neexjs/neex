@@ -1,27 +1,55 @@
-# neex
+<div align="center">
+ <a href="https://github.com/Neexjs">
+<picture>
+<source media="(prefers-color-scheme: dark)" srcset="https://neex.storage.c2.liara.space/Neex.png">
+<img alt="Neex logo" src="https://neex.storage.c2.liara.space/Neex.png" height="150" style="border-radius: 50%;">
+</picture>
+</a>
 
-Ultra-fast monorepo build tool with tiered caching.
+# Neex
 
-## Features
+**Ultra-fast Monorepo Build Tool with Tiered Caching**
 
-- ⚡ **20x faster** than Turbo/Nx (tiered caching)
-- 🧠 **AST-aware hashing** - ignores comments
-- 🔗 **Symbol-level tracking** - only rebuild what changed
-- 🌐 **P2P cache** - share with teammates on LAN
-- ☁️ **Cloud cache** - S3/R2 compatible
-- 🎨 **Beautiful TUI** - live task dashboard
+[![NPM version](https://img.shields.io/npm/v/neex.svg?style=for-the-badge&labelColor=000000&color=0066FF&logo=npm&logoWidth=20)](https://www.npmjs.com/package/neex)
+[![Built with Rust](https://img.shields.io/badge/Built%20with-Rust-0066FF.svg?style=for-the-badge&labelColor=000000&logo=rust&logoWidth=20)](https://www.rust-lang.org/)
+[![MIT License](https://img.shields.io/badge/license-MIT-0066FF.svg?style=for-the-badge&labelColor=000000&logo=bookstack&logoColor=white&logoWidth=20)](https://github.com/Neexjs/neex/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-Neex-0066FF.svg?style=for-the-badge&logo=github&labelColor=000000&logoWidth=20)](https://github.com/Neexjs)
 
-## Install
+[Features](#features) • [Installation](#installation) • [Usage](#usage) • [Benchmarks](#benchmarks) • [Architecture](#architecture)
+
+</div>
+
+---
+
+## ⚡ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🚀 **20x Faster** | Rust-powered execution, faster than Turbo/Nx |
+| 🧠 **AST-Aware Hashing** | Ignores comments and whitespace changes |
+| 🔗 **Symbol-Level Tracking** | Only rebuilds files with changed exports |
+| 💾 **Tiered Caching** | Local → P2P (LAN) → Cloud (S3/R2) |
+| 🎨 **Beautiful TUI** | Real-time task dashboard with progress |
+| 📦 **Zero Config** | Works with any monorepo structure |
+
+---
+
+## 📦 Installation
 
 ```bash
+# npm
 npm install -g neex
-# or
+
+# pnpm
 pnpm add -g neex
-# or
+
+# bun
 bun add -g neex
 ```
 
-## Usage
+---
+
+## 🚀 Usage
 
 ```bash
 # Run any task
@@ -38,36 +66,96 @@ neex build --filter=web
 # Smart rebuild (symbol-level)
 neex build --symbols
 
-# Show dependency graph
-neex --graph
-
-# Setup cloud cache
-neex --login
+# Parallel with concurrency limit
+neex test --all -c 4
 ```
 
-## Commands
+### Special Commands
 
-| Command | Description |
-|---------|-------------|
-| `neex <task>` | Run task with caching |
-| `neex <task> --all` | Run on all packages |
-| `neex <task> --filter=pkg` | Run on specific package |
-| `neex <task> --symbols` | Smart symbol-level rebuild |
-| `neex --graph` | Show dependency graph |
-| `neex --list` | List all packages |
-| `neex --info` | Show project info |
-| `neex --login` | Setup cloud cache |
-| `neex --prune` | Clean cache |
+```bash
+neex --graph          # Show dependency graph
+neex --list           # List all packages
+neex --info           # Project information
+neex --login          # Setup cloud cache (S3/R2)
+neex --prune          # Clean cache
+```
 
-## Performance
+---
 
-| Scenario | Turbo | Neex |
-|----------|-------|------|
-| Cold build | 10s | 8s |
-| Cache hit | 50ms | **12ms** |
-| Comment change | rebuild | skip |
-| Symbol change | all deps | **affected only** |
+## 🏎️ Benchmarks
 
-## License
+| Scenario | Turbo | Nx | **Neex** |
+|----------|-------|-----|----------|
+| Cold build | 10s | 12s | **8s** |
+| Cache hit | 50ms | 80ms | **12ms** |
+| Comment change | rebuild | rebuild | **skip** |
+| Symbol change | all deps | all deps | **affected only** |
 
-MIT
+> Benchmarks on 100-package monorepo, M1 MacBook Pro
+
+---
+
+## 🏗️ Architecture
+
+```
+neex/
+├── crates/
+│   ├── neex-core/      # Core: Hasher, TaskRunner, DepGraph, SymbolGraph
+│   ├── neex-daemon/    # Background: Watcher, P2P, State
+│   └── neex-cli/       # CLI: Commands, TUI
+└── npm/                # NPM distribution
+```
+
+### Cache Tiers
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   L1: RAM   │ ──▶ │  L2: sled   │ ──▶ │   L3: P2P   │ ──▶ Cloud
+│   (1ms)     │     │   (5ms)     │     │  (10-50ms)  │     (S3/R2)
+└─────────────┘     └─────────────┘     └─────────────┘
+```
+
+---
+
+## ☁️ Cloud Cache Setup
+
+```bash
+# Interactive setup
+neex --login
+
+# Manual config (~/.neex/config.json)
+{
+  "cloud": {
+    "type": "s3",
+    "bucket": "my-cache",
+    "region": "auto",
+    "endpoint": "https://xxx.r2.cloudflarestorage.com"
+  }
+}
+```
+
+Supports: **AWS S3**, **Cloudflare R2**, **MinIO**, any S3-compatible storage.
+
+---
+
+## 🔧 Requirements
+
+- **Node.js** 18+
+- **Package Manager**: npm, pnpm, yarn, or bun
+- **Monorepo**: Workspaces configured in `package.json`
+
+---
+
+## 📄 License
+
+MIT © [Neexjs](https://github.com/Neexjs)
+
+---
+
+<div align="center">
+
+**Made with ❤️ by the Neex team**
+
+[GitHub](https://github.com/Neexjs/neex) • [NPM](https://www.npmjs.com/package/neex)
+
+</div>
