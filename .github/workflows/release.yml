@@ -12,9 +12,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # Step 1: Update all version files from git tag
-  sync-versions:
-    name: 📌 Sync Versions
+  # Step 1: Sync versions from git tag and wait for commit
+  prepare:
+    name: 📌 Prepare Release
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -30,38 +30,46 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "📌 Version: $VERSION"
 
-      - name: Update Cargo.toml
+      - name: Update Version Files
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          sed -i 's/^version = ".*"/version = "'$VERSION'"/' crates/Cargo.toml
-          echo "✅ Updated crates/Cargo.toml to $VERSION"
 
-      - name: Update npm/neex/package.json
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
+          # Update Cargo.toml
+          sed -i 's/^version = ".*"/version = "'$VERSION'"/' crates/Cargo.toml
+
+          # Update npm/neex/package.json
           cd npm/neex
-          # Update main version
           sed -i 's/"version": ".*"/"version": "'$VERSION'"/' package.json
-          # Update optionalDependencies
           sed -i 's/"@neex\/darwin-arm64": ".*"/"@neex\/darwin-arm64": "'$VERSION'"/' package.json
           sed -i 's/"@neex\/darwin-x64": ".*"/"@neex\/darwin-x64": "'$VERSION'"/' package.json
           sed -i 's/"@neex\/linux-x64": ".*"/"@neex\/linux-x64": "'$VERSION'"/' package.json
           sed -i 's/"@neex\/win32-x64": ".*"/"@neex\/win32-x64": "'$VERSION'"/' package.json
-          echo "✅ Updated npm/neex/package.json to $VERSION"
 
-      - name: Commit Version Updates
+          echo "✅ Updated all version files to $VERSION"
+
+      - name: Commit and Push Version Updates
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --staged --quiet || git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
-          git push origin HEAD:main || true
-          echo "✅ Version files committed"
+          if git diff --staged --quiet; then
+            echo "No version changes needed"
+          else
+            git commit -m "chore: bump version to ${{ steps.version.outputs.version }}"
+            git push origin HEAD:main
+          fi
 
-  # Step 2: Build for all platforms
+      - name: Upload Updated Source
+        uses: actions/upload-artifact@v4
+        with:
+          name: source
+          path: .
+          retention-days: 1
+
+  # Step 2: Build for all platforms (uses updated source)
   build:
     name: Build ${{ matrix.platform }}
-    needs: sync-versions
+    needs: prepare
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -81,9 +89,10 @@ jobs:
             platform: win32-x64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          ref: main  # Get updated version files
+          name: source
+          path: .
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -97,7 +106,7 @@ jobs:
       - name: Prepare NPM Package
         shell: bash
         run: |
-          VERSION=${{ needs.sync-versions.outputs.version }}
+          VERSION=${{ needs.prepare.outputs.version }}
           mkdir -p npm/@neex/${{ matrix.platform }}/bin
 
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
@@ -120,7 +129,7 @@ jobs:
           }
           EOF
 
-      - name: Upload Artifact
+      - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
           name: neex-${{ matrix.platform }}
@@ -129,16 +138,19 @@ jobs:
   # Step 3: Publish to NPM
   publish-npm:
     name: 📦 Publish to NPM
-    needs: [sync-versions, build]
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          ref: main
+          name: source
+          path: .
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: neex-*
+          merge-multiple: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -149,9 +161,11 @@ jobs:
       - name: Publish Platform Packages
         run: |
           for platform in darwin-arm64 darwin-x64 linux-x64 win32-x64; do
-            cd artifacts/neex-$platform
-            npm publish --access public || true
-            cd ../..
+            if [ -d "artifacts/neex-$platform" ]; then
+              cd artifacts/neex-$platform
+              npm publish --access public || true
+              cd ../..
+            fi
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -166,7 +180,7 @@ jobs:
   # Step 4: Create GitHub Release
   github-release:
     name: 🎉 GitHub Release
-    needs: [sync-versions, build]
+    needs: [prepare, build]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -176,6 +190,8 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: neex-*
+          merge-multiple: false
 
       - name: Get Previous Tag
         id: prev_tag
@@ -185,12 +201,10 @@ jobs:
 
       - name: Generate Release Notes
         run: |
-          VERSION=${{ needs.sync-versions.outputs.version }}
+          VERSION=${{ needs.prepare.outputs.version }}
           PREV_TAG=${{ steps.prev_tag.outputs.tag }}
 
           cat > release_notes.md << 'EOF'
-          ## 🚀 Neex v${{ needs.sync-versions.outputs.version }}
-
           ### ⚡ Installation
 
           ```bash
@@ -208,17 +222,12 @@ jobs:
 
             echo "" >> release_notes.md
             echo "" >> release_notes.md
-            echo "### 👥 Contributors" >> release_notes.md
-            echo "" >> release_notes.md
-            echo "* @${{ github.actor }}" >> release_notes.md
-
-            echo "" >> release_notes.md
-            echo "" >> release_notes.md
             echo "**Full Changelog**: https://github.com/Neexjs/neex/compare/$PREV_TAG...v$VERSION" >> release_notes.md
           else
             echo "🎉 Initial release!" >> release_notes.md
           fi
 
+          echo "" >> release_notes.md
           echo "" >> release_notes.md
           echo "---" >> release_notes.md
           echo "" >> release_notes.md
@@ -242,7 +251,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Neex v${{ needs.sync-versions.outputs.version }}"
+          name: "v${{ needs.prepare.outputs.version }}"
           body_path: release_notes.md
           files: release_assets/*
           token: ${{ secrets.GITHUB_TOKEN }}
