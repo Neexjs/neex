@@ -377,13 +377,22 @@ async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Resul
     let order = graph.get_build_order()?;
     let tasks = create_tasks(cwd, &order, task, &graph);
 
-    let c = concurrency
-        .unwrap_or_else(|| std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4));
+    let c = concurrency.unwrap_or_else(|| {
+        std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4)
+    });
 
     let results = Scheduler::new(c).execute(tasks).await?;
 
-    let ok = results.iter().filter(|r| r.status == neex_core::TaskStatus::Completed).count();
-    let fail = results.iter().filter(|r| r.status == neex_core::TaskStatus::Failed).count();
+    let ok = results
+        .iter()
+        .filter(|r| r.status == neex_core::TaskStatus::Completed)
+        .count();
+    let fail = results
+        .iter()
+        .filter(|r| r.status == neex_core::TaskStatus::Failed)
+        .count();
 
     if fail == 0 {
         println!("✓ {} packages {}ms", ok, start.elapsed().as_millis());
@@ -454,8 +463,10 @@ fn create_tasks(
                 let content = std::fs::read_to_string(&pkg_path)?;
                 let pkg: serde_json::Value = serde_json::from_str(&content)?;
 
-                if let Some(cmd) =
-                    pkg.get("scripts").and_then(|s| s.get(t.as_str())).and_then(|c| c.as_str())
+                if let Some(cmd) = pkg
+                    .get("scripts")
+                    .and_then(|s| s.get(t.as_str()))
+                    .and_then(|c| c.as_str())
                 {
                     print!("  {} ", name);
                     let out = std::process::Command::new("sh")
@@ -585,9 +596,14 @@ async fn cloud_login() -> Result<()> {
     let theme = ColorfulTheme::default();
 
     let providers = &["Cloudflare R2", "AWS S3", "MinIO", "Other"];
-    let _ = Select::with_theme(&theme).with_prompt("Provider").items(providers).interact()?;
+    let _ = Select::with_theme(&theme)
+        .with_prompt("Provider")
+        .items(providers)
+        .interact()?;
 
-    let endpoint: String = Input::with_theme(&theme).with_prompt("Endpoint").interact_text()?;
+    let endpoint: String = Input::with_theme(&theme)
+        .with_prompt("Endpoint")
+        .interact_text()?;
     let bucket: String = Input::with_theme(&theme)
         .with_prompt("Bucket")
         .with_initial_text("neex-cache")
@@ -596,8 +612,12 @@ async fn cloud_login() -> Result<()> {
         .with_prompt("Region")
         .with_initial_text("auto")
         .interact_text()?;
-    let access: String = Input::with_theme(&theme).with_prompt("Access Key").interact_text()?;
-    let secret: String = Password::with_theme(&theme).with_prompt("Secret Key").interact()?;
+    let access: String = Input::with_theme(&theme)
+        .with_prompt("Access Key")
+        .interact_text()?;
+    let secret: String = Password::with_theme(&theme)
+        .with_prompt("Secret Key")
+        .interact()?;
 
     save_config(&CloudConfig {
         s3: Some(S3Config {
@@ -672,7 +692,9 @@ fn dir_size(path: &PathBuf) -> Result<u64> {
 
 async fn send_request(socket: &PathBuf, req: DaemonRequest) -> Result<DaemonResponse> {
     let mut stream = UnixStream::connect(socket).await?;
-    stream.write_all(serde_json::to_string(&req)?.as_bytes()).await?;
+    stream
+        .write_all(serde_json::to_string(&req)?.as_bytes())
+        .await?;
     stream.write_all(b"\n").await?;
 
     let (r, _) = stream.into_split();

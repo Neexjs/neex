@@ -99,7 +99,8 @@ impl DaemonState {
         }
 
         // Persist to DB
-        self.db.insert(path.to_string_lossy().as_bytes(), hash.as_bytes())?;
+        self.db
+            .insert(path.to_string_lossy().as_bytes(), hash.as_bytes())?;
 
         debug!("Updated hash: {:?}", path);
         Ok(Some(hash))

@@ -143,11 +143,18 @@ impl DepGraph {
         let content = std::fs::read_to_string(&pkg_json_path)?;
         let pkg: PackageJson = serde_json::from_str(&content)?;
 
-        let name = pkg.name.ok_or_else(|| anyhow!("Package has no name: {:?}", ws_path))?;
-        let relative_path = ws_path.strip_prefix(&self.root).unwrap_or(ws_path).to_path_buf();
+        let name = pkg
+            .name
+            .ok_or_else(|| anyhow!("Package has no name: {:?}", ws_path))?;
+        let relative_path = ws_path
+            .strip_prefix(&self.root)
+            .unwrap_or(ws_path)
+            .to_path_buf();
 
-        let scripts: Vec<String> =
-            pkg.scripts.map(|s| s.keys().cloned().collect()).unwrap_or_default();
+        let scripts: Vec<String> = pkg
+            .scripts
+            .map(|s| s.keys().cloned().collect())
+            .unwrap_or_default();
 
         let node = WorkspaceNode {
             name: name.clone(),
@@ -227,8 +234,11 @@ impl DepGraph {
             .map_err(|_| anyhow!("Cycle detected during topological sort"))?;
 
         // Reverse: dependencies should come first
-        let build_order: Vec<&WorkspaceNode> =
-            sorted.into_iter().rev().map(|idx| &self.graph[idx]).collect();
+        let build_order: Vec<&WorkspaceNode> = sorted
+            .into_iter()
+            .rev()
+            .map(|idx| &self.graph[idx])
+            .collect();
 
         Ok(build_order)
     }
@@ -248,7 +258,10 @@ impl DepGraph {
 
         while let Some(idx) = queue.pop() {
             // Find all packages that have an edge TO this node (dependents)
-            for neighbor in self.graph.neighbors_directed(idx, petgraph::Direction::Incoming) {
+            for neighbor in self
+                .graph
+                .neighbors_directed(idx, petgraph::Direction::Incoming)
+            {
                 if visited.insert(neighbor) {
                     affected.push(&self.graph[neighbor]);
                     queue.push(neighbor);
@@ -266,7 +279,10 @@ impl DepGraph {
 
     /// Get all packages
     pub fn packages(&self) -> Vec<&WorkspaceNode> {
-        self.graph.node_indices().map(|idx| &self.graph[idx]).collect()
+        self.graph
+            .node_indices()
+            .map(|idx| &self.graph[idx])
+            .collect()
     }
 
     /// Get package count

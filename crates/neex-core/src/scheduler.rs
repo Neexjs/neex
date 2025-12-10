@@ -69,7 +69,9 @@ impl Scheduler {
 
     /// Create scheduler with default concurrency (CPU cores)
     pub fn with_default_concurrency() -> Self {
-        let cpus = std::thread::available_parallelism().map(|p| p.get()).unwrap_or(4);
+        let cpus = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4);
         Self::new(cpus)
     }
 
