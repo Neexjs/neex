@@ -32,8 +32,8 @@ jobs:
       - name: 📈 Store Results
         if: github.ref == 'refs/heads/main'
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
+          git config --local user.email "amirrezafoshati@gmail.com"
+          git config --local user.name "foshati"
           mkdir -p benchmarks
           cp crates/benchmark-results.md benchmarks/$(date +%Y-%m-%d).md
           git add benchmarks/ || true
