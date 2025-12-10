@@ -1,0 +1,28 @@
+{
+  "name": "@demo/web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bunx next dev --port 3000",
+    "build": "bunx next build",
+    "start": "bunx next start",
+    "lint": "echo 'Lint passed'",
+    "test": "echo 'Tests passed'"
+  },
+  "dependencies": {
+    "@demo/ui": "*",
+    "next": "^16.0.7",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@demo/eslint-config": "*",
+    "@demo/typescript-config": "*",
+    "@types/node": "^22.15.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  }
+}

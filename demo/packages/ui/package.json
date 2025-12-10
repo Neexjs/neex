@@ -1,0 +1,32 @@
+{
+  "name": "@demo/ui",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    "./button": "./src/button.tsx",
+    "./card": "./src/card.tsx"
+  },
+  "scripts": {
+    "dev": "echo 'UI watching...'",
+    "build": "echo 'UI package built'",
+    "lint": "echo 'Lint passed'",
+    "test": "echo 'Tests passed'"
+  },
+  "devDependencies": {
+    "@demo/typescript-config": "*",
+    "@types/node": "^22.15.3",
+    "@types/react": "19.2.2",
+    "@types/react-dom": "19.2.2",
+    "eslint": "^9.39.1",
+    "typescript": "5.9.2"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.1.17",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.17"
+  }
+}
