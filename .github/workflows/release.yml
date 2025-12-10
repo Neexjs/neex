@@ -147,47 +147,6 @@ jobs:
           PREV=$(git describe --abbrev=0 --tags HEAD^ 2>/dev/null || echo "")
           echo "tag=$PREV" >> $GITHUB_OUTPUT
 
-      - name: Generate Release Notes
-        run: |
-          VERSION=${{ steps.version.outputs.version }}
-          PREV_TAG=${{ steps.prev_tag.outputs.tag }}
-
-          cat > release_notes.md << 'EOF'
-          ### ⚡ Installation
-
-          ```bash
-          npm install -g neex
-          # or
-          pnpm add -g neex
-          ```
-
-          ### 📋 What's Changed
-
-          EOF
-
-          if [ -n "$PREV_TAG" ]; then
-            git log --pretty=format:"* %s" $PREV_TAG..HEAD | head -20 >> release_notes.md
-
-            echo "" >> release_notes.md
-            echo "" >> release_notes.md
-            echo "**Full Changelog**: https://github.com/Neexjs/neex/compare/$PREV_TAG...v$VERSION" >> release_notes.md
-          else
-            echo "🎉 Initial release!" >> release_notes.md
-          fi
-
-          echo "" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "---" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "### 📦 Assets" >> release_notes.md
-          echo "" >> release_notes.md
-          echo "| Platform | File |" >> release_notes.md
-          echo "|----------|------|" >> release_notes.md
-          echo "| macOS (Apple Silicon) | \`neex-darwin-arm64\` |" >> release_notes.md
-          echo "| macOS (Intel) | \`neex-darwin-x64\` |" >> release_notes.md
-          echo "| Linux (x64) | \`neex-linux-x64\` |" >> release_notes.md
-          echo "| Windows (x64) | \`neex-win32-x64.exe\` |" >> release_notes.md
-
       - name: Prepare Release Assets
         run: |
           mkdir -p release_assets
@@ -200,6 +159,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "v${{ steps.version.outputs.version }}"
-          body_path: release_notes.md
+          generate_release_notes: true
           files: release_assets/*
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
+
