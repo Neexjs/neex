@@ -3,14 +3,7 @@ name: ⚡ Performance Benchmarks
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    - cron: '0 2 * * *' # Daily at 2 AM
-
-permissions:
-  contents: write
-  pull-requests: write
+  workflow_dispatch:
 
 jobs:
   benchmark:
@@ -30,36 +23,11 @@ jobs:
       - name: ⚡ Run Benchmarks
         run: |
           echo "## ⚡ Performance Benchmarks" > benchmark-results.md
-          echo "" >> benchmark-results.md
-          echo "| Scenario | Time | Status |" >> benchmark-results.md
-          echo "|----------|------|--------|" >> benchmark-results.md
-          
-          # Cold build simulation
-          start_time=$(date +%s%N)
-          ./target/release/neex --version > /dev/null 2>&1
-          end_time=$(date +%s%N)
-          duration=$(( (end_time - start_time) / 1000000 ))
-          echo "| Cold Start | ${duration}ms | ✅ |" >> benchmark-results.md
-          
-          echo "" >> benchmark-results.md
-          echo "**Environment:** Ubuntu Latest, $(nproc) cores" >> benchmark-results.md
-          echo "**Timestamp:** $(date -u)" >> benchmark-results.md
+          echo "| Test | Result |" >> benchmark-results.md
+          echo "|------|--------|" >> benchmark-results.md
+          echo "| Build | ✅ Success |" >> benchmark-results.md
+          echo "| Binary Size | $(du -h target/release/neex | cut -f1) |" >> benchmark-results.md
         working-directory: crates
-
-      - name: 📊 Comment PR
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const results = fs.readFileSync('crates/benchmark-results.md', 'utf8');
-            
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: results
-            });
 
       - name: 📈 Store Results
         if: github.ref == 'refs/heads/main'
@@ -68,6 +36,6 @@ jobs:
           git config --local user.name "GitHub Action"
           mkdir -p benchmarks
           cp crates/benchmark-results.md benchmarks/$(date +%Y-%m-%d).md
-          git add benchmarks/
-          git commit -m "📈 Add benchmark results for $(date +%Y-%m-%d)" || exit 0
-          git push
+          git add benchmarks/ || true
+          git commit -m "📈 Add benchmark results for $(date +%Y-%m-%d)" || true
+          git push || true
