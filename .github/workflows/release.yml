@@ -54,18 +54,18 @@ jobs:
         shell: bash
         run: |
           VERSION=${{ steps.version.outputs.version }}
-          mkdir -p npm/@neex/${{ matrix.platform }}/bin
+          mkdir -p npm/@neexjs/${{ matrix.platform }}/bin
 
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            cp crates/target/${{ matrix.target }}/release/neex.exe npm/@neex/${{ matrix.platform }}/bin/
+            cp crates/target/${{ matrix.target }}/release/neex.exe npm/@neexjs/${{ matrix.platform }}/bin/
           else
-            cp crates/target/${{ matrix.target }}/release/neex npm/@neex/${{ matrix.platform }}/bin/
-            chmod +x npm/@neex/${{ matrix.platform }}/bin/neex
+            cp crates/target/${{ matrix.target }}/release/neex npm/@neexjs/${{ matrix.platform }}/bin/
+            chmod +x npm/@neexjs/${{ matrix.platform }}/bin/neex
           fi
 
-          cat > npm/@neex/${{ matrix.platform }}/package.json << EOF
+          cat > npm/@neexjs/${{ matrix.platform }}/package.json << EOF
           {
-            "name": "@neex/${{ matrix.platform }}",
+            "name": "@neexjs/${{ matrix.platform }}",
             "version": "$VERSION",
             "description": "Neex binary for ${{ matrix.platform }}",
             "repository": {
@@ -80,7 +80,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: neex-${{ matrix.platform }}
-          path: npm/@neex/${{ matrix.platform }}
+          path: npm/@neexjs/${{ matrix.platform }}
 
   # Publish to NPM
   publish-npm:
