@@ -1,8 +1,6 @@
 name: 👥 Update Contributors
 
 on:
-  schedule:
-    - cron: '0 0 * * 0'
   workflow_dispatch:
 
 permissions:
@@ -11,13 +9,25 @@ permissions:
 
 jobs:
   contributors:
-    name: 👥 Update Contributors
+    name: 👥 Update Contributors  
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: 👥 Generate Contributors
-        uses: akhilmhdh/contributors-readme-action@v2.3.6
         with:
-          filename: 'CONTRIBUTORS.md'
-          use_username: true
+          fetch-depth: 0
+          
+      - name: 👥 Generate Contributors File
+        run: |
+          echo "# 👥 Contributors" > CONTRIBUTORS.md
+          echo "" >> CONTRIBUTORS.md
+          echo "Thanks to all contributors! 🎉" >> CONTRIBUTORS.md
+          echo "" >> CONTRIBUTORS.md
+          git log --format='- %an (%ae)' | sort -u >> CONTRIBUTORS.md
+          
+      - name: 📝 Commit Changes
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add CONTRIBUTORS.md
+          git diff --staged --quiet || git commit -m "docs: update contributors list"
+          git push || echo "No changes to push"
