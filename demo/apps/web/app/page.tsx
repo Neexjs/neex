@@ -163,7 +163,7 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-800 p-6">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-linear-to-br from-gray-900 via-black to-gray-800 p-6">
       <div className="text-center mb-10">
         <pre className="text-blue-400 text-[10px] sm:text-sm md:text-base lg:text-lg font-mono whitespace-pre-wrap leading-tight drop-shadow-md">
           {LOGO_TEXT}
