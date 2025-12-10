@@ -2,16 +2,16 @@
 resolver = "2"
 members = [ "neex-cli",
     "neex-core",
-    "neex-daemon", 
+    "neex-daemon",
     "neex-napi",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.8.3"
 edition = "2021"
 authors = ["Foshati"]
 license = "MIT"
-repository = "https://github.com/Foshati/neexa"
+repository = "https://github.com/Neexjs/neex"
 
 [workspace.dependencies]
 # Hashing
