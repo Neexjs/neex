@@ -7,10 +7,10 @@
     "./card": "./src/card.tsx"
   },
   "scripts": {
-    "dev": "echo 'UI watching...'",
-    "build": "echo 'UI package built'",
-    "lint": "echo 'Lint passed'",
-    "test": "echo 'Tests passed'"
+    "dev": "tsc --watch",
+    "build": "tsc",
+    "lint": "eslint src/",
+    "test": "vitest"
   },
   "devDependencies": {
     "@demo/typescript-config": "*",
