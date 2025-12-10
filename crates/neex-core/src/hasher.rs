@@ -106,18 +106,16 @@ impl Hasher {
     /// Get files that changed since last hash
     pub fn get_changed(&self, old_hashes: &HashMap<PathBuf, String>) -> Result<Vec<PathBuf>> {
         let current = self.hash_all()?;
-        
+
         let changed: Vec<PathBuf> = current
             .iter()
-            .filter(|file| {
-                match old_hashes.get(&file.path) {
-                    Some(old_hash) => old_hash != &file.hash,
-                    None => true, // New file
-                }
+            .filter(|file| match old_hashes.get(&file.path) {
+                Some(old_hash) => old_hash != &file.hash,
+                None => true, // New file
             })
             .map(|f| f.path.clone())
             .collect();
-        
+
         Ok(changed)
     }
 
