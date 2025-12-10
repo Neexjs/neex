@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/Neexjs/neex#readme
+    about: Check the README for usage and examples
+  - name: 💬 Discussions
+    url: https://github.com/Neexjs/neex/discussions
+    about: Ask questions and share ideas

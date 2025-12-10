@@ -34,7 +34,7 @@ pub enum TaskStatus {
     Running,
     Completed(u64), // ms
     Failed(String),
-    Cached(u64),    // ms
+    Cached(u64), // ms
 }
 
 /// Task for TUI display
@@ -95,7 +95,7 @@ impl TuiState {
     pub fn update_task(&mut self, name: &str, status: TaskStatus) {
         if let Some(task) = self.tasks.iter_mut().find(|t| t.name == name) {
             task.status = status.clone();
-            
+
             match status {
                 TaskStatus::Completed(_) | TaskStatus::Failed(_) => {
                     self.completed_tasks += 1;
@@ -106,7 +106,7 @@ impl TuiState {
                 }
                 _ => {}
             }
-            
+
             self.progress = self.completed_tasks as f64 / self.total_tasks as f64;
         }
     }
@@ -155,7 +155,7 @@ pub fn run_tui(state: Arc<Mutex<TuiState>>) -> Result<()> {
         {
             let state_guard = state.lock().unwrap();
             terminal.draw(|f| ui(f, &state_guard, cpu, mem))?;
-            
+
             if state_guard.should_quit {
                 break;
             }
@@ -236,15 +236,19 @@ fn draw_header(f: &mut Frame, area: Rect, state: &TuiState, cpu: f32, mem: u64) 
     let header_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(10),  // Logo
-            Constraint::Length(30),  // Status
-            Constraint::Min(20),     // Progress
+            Constraint::Length(10), // Logo
+            Constraint::Length(30), // Status
+            Constraint::Min(20),    // Progress
         ])
         .split(area);
 
     // Logo
     let logo = Paragraph::new("🚀 NEEX")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(logo, header_chunks[0]);
 
@@ -254,7 +258,11 @@ fn draw_header(f: &mut Frame, area: Rect, state: &TuiState, cpu: f32, mem: u64) 
     } else {
         "P2P:Off".to_string()
     };
-    let cloud = if state.cloud_enabled { "☁️ On" } else { "☁️ Off" };
+    let cloud = if state.cloud_enabled {
+        "☁️ On"
+    } else {
+        "☁️ Off"
+    };
     let status_text = format!(" {} │ {} │ CPU:{}% │ {}MB", p2p, cloud, cpu as u32, mem);
     let status = Paragraph::new(status_text)
         .style(Style::default().fg(Color::Gray))
@@ -296,14 +304,14 @@ fn draw_sidebar(f: &mut Frame, area: Rect, state: &TuiState) {
                 }
                 TaskStatus::Failed(_) => ("✗", Style::default().fg(Color::Red)),
             };
-            
+
             let text = format!("{} {}", icon, task.name);
             let mut item = ListItem::new(text).style(style);
-            
+
             if i == state.selected {
                 item = item.style(style.add_modifier(Modifier::REVERSED));
             }
-            
+
             item
         })
         .collect();
@@ -318,34 +326,44 @@ fn draw_sidebar(f: &mut Frame, area: Rect, state: &TuiState) {
     let list = List::new(items)
         .block(Block::default().title(title).borders(Borders::ALL))
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-    
+
     let mut list_state = ListState::default();
     list_state.select(Some(state.selected));
-    
+
     f.render_stateful_widget(list, area, &mut list_state);
 }
 
 /// Draw main log panel
 fn draw_main(f: &mut Frame, area: Rect, state: &TuiState) {
     let selected_task = state.tasks.get(state.selected);
-    
+
     let (title, logs) = match selected_task {
         Some(task) => {
             let title = format!("📋 {}", task.name);
-            let logs: Vec<Line> = task.logs.iter().map(|log| {
-                // Syntax highlighting
-                let style = if log.contains("error") || log.contains("Error") || log.contains("ERROR") {
-                    Style::default().fg(Color::Red)
-                } else if log.contains("warn") || log.contains("Warn") || log.contains("WARN") {
-                    Style::default().fg(Color::Yellow)
-                } else if log.contains("✓") || log.contains("success") || log.contains("Success") {
-                    Style::default().fg(Color::Green)
-                } else {
-                    Style::default()
-                };
-                
-                Line::from(Span::styled(log.clone(), style))
-            }).collect();
+            let logs: Vec<Line> = task
+                .logs
+                .iter()
+                .map(|log| {
+                    // Syntax highlighting
+                    let style = if log.contains("error")
+                        || log.contains("Error")
+                        || log.contains("ERROR")
+                    {
+                        Style::default().fg(Color::Red)
+                    } else if log.contains("warn") || log.contains("Warn") || log.contains("WARN") {
+                        Style::default().fg(Color::Yellow)
+                    } else if log.contains("✓")
+                        || log.contains("success")
+                        || log.contains("Success")
+                    {
+                        Style::default().fg(Color::Green)
+                    } else {
+                        Style::default()
+                    };
+
+                    Line::from(Span::styled(log.clone(), style))
+                })
+                .collect();
             (title, logs)
         }
         None => ("📋 No task selected".to_string(), vec![]),
@@ -368,10 +386,9 @@ fn draw_footer(f: &mut Frame, area: Rect) {
         Span::styled("[q]", Style::default().fg(Color::Cyan)),
         Span::raw(" Quit "),
     ]);
-    
-    let footer = Paragraph::new(shortcuts)
-        .style(Style::default().bg(Color::DarkGray));
-    
+
+    let footer = Paragraph::new(shortcuts).style(Style::default().bg(Color::DarkGray));
+
     f.render_widget(footer, area);
 }
 
@@ -384,7 +401,7 @@ mod tests {
         let mut state = TuiState::default();
         state.add_task("web:build");
         state.add_task("ui:build");
-        
+
         assert_eq!(state.tasks.len(), 2);
         assert_eq!(state.total_tasks, 2);
     }
@@ -394,7 +411,7 @@ mod tests {
         let mut state = TuiState::default();
         state.add_task("web:build");
         state.update_task("web:build", TaskStatus::Completed(100));
-        
+
         assert_eq!(state.completed_tasks, 1);
         assert_eq!(state.progress, 1.0);
     }
@@ -404,7 +421,7 @@ mod tests {
         let mut state = TuiState::default();
         state.add_task("web:build");
         state.update_task("web:build", TaskStatus::Cached(50));
-        
+
         assert_eq!(state.cache_hits, 1);
     }
 
@@ -414,7 +431,7 @@ mod tests {
         state.add_task("a");
         state.add_task("b");
         state.add_task("c");
-        
+
         assert_eq!(state.selected, 0);
         state.next();
         assert_eq!(state.selected, 1);

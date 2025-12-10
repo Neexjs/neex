@@ -1,33 +1,68 @@
 name: 🐛 Bug Report
 description: Report a bug to help us improve Neex
 title: "[Bug]: "
-labels: ["bug", "needs-triage"]
+labels: ["bug"]
 
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please fill out the form below.
+
   - type: textarea
     id: description
     attributes:
-      label: 📝 Bug Description
-      description: A clear description of what the bug is
+      label: What happened?
+      description: A clear description of the bug
+      placeholder: When I run `neex build`, it fails with...
     validations:
       required: true
 
   - type: textarea
-    id: reproduction
+    id: expected
     attributes:
-      label: 🔄 Steps to Reproduce
-      description: Steps to reproduce the behavior
+      label: Expected behavior
+      description: What did you expect to happen?
+      placeholder: The build should complete successfully
     validations:
       required: true
 
   - type: textarea
-    id: environment
+    id: reproduce
     attributes:
-      label: 🌍 Environment
-      description: Your environment details
+      label: Steps to reproduce
+      description: Minimal steps to reproduce
       placeholder: |
-        - OS: [e.g. macOS 14.0]
-        - Node.js: [e.g. 20.10.0] 
-        - Neex: [e.g. 0.8.0]
+        1. Create a new project with `npm init`
+        2. Run `neex build`
+        3. See error
     validations:
       required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Neex Version
+      placeholder: "0.8.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error logs
+      description: Paste any relevant error messages
+      render: shell
+    validations:
+      required: false

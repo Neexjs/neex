@@ -11,21 +11,21 @@
 //! - Respects .gitignore patterns
 //! - Content-addressable storage
 
-pub mod hasher;
 pub mod ast_hasher;
-pub mod graph;
 pub mod cache;
+pub mod cloud;
+pub mod graph;
+pub mod hasher;
 pub mod runner;
 pub mod scheduler;
-pub mod cloud;
-pub mod symbols;
 pub mod symbol_graph;
+pub mod symbols;
 
-pub use hasher::Hasher;
 pub use ast_hasher::{hash_ast, is_parseable};
-pub use graph::{DepGraph, WorkspaceNode, DependencyGraph};
-pub use runner::{TaskRunner, TaskOutput};
+pub use cloud::{get_config_path, load_config, save_config, CloudCache, CloudConfig, S3Config};
+pub use graph::{DepGraph, DependencyGraph, WorkspaceNode};
+pub use hasher::Hasher;
+pub use runner::{TaskOutput, TaskRunner};
 pub use scheduler::{Scheduler, SchedulerTask, TaskResult, TaskStatus};
-pub use cloud::{CloudCache, CloudConfig, S3Config, load_config, save_config, get_config_path};
-pub use symbols::{extract_symbols, extract_from_file, FileSymbols, Symbol, SymbolKind, Import};
-pub use symbol_graph::{SymbolGraph, SymbolCache};
+pub use symbol_graph::{SymbolCache, SymbolGraph};
+pub use symbols::{extract_from_file, extract_symbols, FileSymbols, Import, Symbol, SymbolKind};

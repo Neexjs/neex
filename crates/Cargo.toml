@@ -2,16 +2,16 @@
 resolver = "2"
 members = [ "neex-cli",
     "neex-core",
-    "neex-daemon", 
+    "neex-daemon",
     "neex-napi",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.8.6"
 edition = "2021"
 authors = ["Foshati"]
 license = "MIT"
-repository = "https://github.com/Foshati/neexa"
+repository = "https://github.com/Neexjs/neex"
 
 [workspace.dependencies]
 # Hashing
@@ -34,7 +34,7 @@ tokio = { version = "1.42", features = ["full"] }
 notify = "7.0"
 
 # Graph
-petgraph = "0.6"
+petgraph = "0.8"
 
 # Glob patterns
 glob = "0.3"

@@ -10,12 +10,12 @@
 //! - P2P LAN cache sharing via mDNS
 //! - Zero startup time for builds
 
-pub mod watcher;
-pub mod state;
-pub mod server;
 pub mod p2p;
+pub mod server;
+pub mod state;
+pub mod watcher;
 
-pub use watcher::FileWatcher;
+pub use p2p::{start_artifact_server, PeerManager};
+pub use server::{DaemonRequest, DaemonResponse, DaemonServer};
 pub use state::DaemonState;
-pub use server::{DaemonServer, DaemonRequest, DaemonResponse};
-pub use p2p::{PeerManager, start_artifact_server};
+pub use watcher::FileWatcher;

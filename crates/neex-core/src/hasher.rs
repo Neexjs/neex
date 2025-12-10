@@ -50,7 +50,7 @@ impl Hasher {
     pub fn hash_all(&self) -> Result<Vec<FileHash>> {
         let files: Vec<PathBuf> = WalkBuilder::new(&self.root)
             .hidden(false)
-            .ignore(true)        // Respect .gitignore
+            .ignore(true) // Respect .gitignore
             .git_ignore(true)
             .git_global(true)
             .build()
@@ -66,7 +66,7 @@ impl Hasher {
                 let content = fs::read(path).ok()?;
                 let hash = blake3::hash(&content);
                 let size = content.len() as u64;
-                
+
                 Some(FileHash {
                     path: path.clone(),
                     hash: hash.to_hex().to_string(),
@@ -89,35 +89,33 @@ impl Hasher {
     /// Get global hash of all files (for cache key)
     pub fn global_hash(&self) -> Result<String> {
         let files = self.hash_all()?;
-        
+
         let mut hasher = Blake3Hasher::new();
-        
+
         // Sort for deterministic hash
         let mut sorted: Vec<_> = files.iter().collect();
         sorted.sort_by(|a, b| a.path.cmp(&b.path));
-        
+
         for file in sorted {
             hasher.update(file.hash.as_bytes());
         }
-        
+
         Ok(hasher.finalize().to_hex().to_string())
     }
 
     /// Get files that changed since last hash
     pub fn get_changed(&self, old_hashes: &HashMap<PathBuf, String>) -> Result<Vec<PathBuf>> {
         let current = self.hash_all()?;
-        
+
         let changed: Vec<PathBuf> = current
             .iter()
-            .filter(|file| {
-                match old_hashes.get(&file.path) {
-                    Some(old_hash) => old_hash != &file.hash,
-                    None => true, // New file
-                }
+            .filter(|file| match old_hashes.get(&file.path) {
+                Some(old_hash) => old_hash != &file.hash,
+                None => true, // New file
             })
             .map(|f| f.path.clone())
             .collect();
-        
+
         Ok(changed)
     }
 
@@ -125,7 +123,7 @@ impl Hasher {
     pub fn stats(&self) -> HasherStats {
         let cache = self.cache.lock().unwrap();
         let total_size: u64 = cache.values().map(|f| f.size).sum();
-        
+
         HasherStats {
             total_files: cache.len(),
             total_size,
@@ -147,13 +145,13 @@ mod tests {
     #[test]
     fn test_hash_performance() {
         let hasher = Hasher::new(".");
-        
+
         let start = Instant::now();
         let files = hasher.hash_all().unwrap();
         let elapsed = start.elapsed();
-        
+
         println!("Hashed {} files in {:?}", files.len(), elapsed);
-        
+
         // Target: should be fast
         assert!(elapsed.as_millis() < 5000, "Hashing took too long!");
     }

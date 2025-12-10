@@ -1,23 +1,23 @@
 name: 🚀 Release
 
 on:
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Release tag'
-        required: true
-      version:
-        description: 'Release version'
-        required: true
   push:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
+  # Build for all platforms
   build:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: macos-latest
@@ -29,9 +29,6 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             platform: linux-x64
-          - os: ubuntu-latest
-            target: aarch64-unknown-linux-gnu
-            platform: linux-arm64
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             platform: win32-x64
@@ -39,56 +36,55 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Get Version
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
       - name: Install Rust
-        uses: dtolnay/rust-action@stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install cross (Linux ARM)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cargo install cross
-
-      - name: Build (Standard)
-        if: matrix.target != 'aarch64-unknown-linux-gnu'
+      - name: Build
         run: cargo build --release --target ${{ matrix.target }} -p neex-cli
-        working-directory: crates
-
-      - name: Build (Cross)
-        if: matrix.target == 'aarch64-unknown-linux-gnu'
-        run: cross build --release --target ${{ matrix.target }} -p neex-cli
         working-directory: crates
 
       - name: Prepare NPM Package
         shell: bash
         run: |
+          VERSION=${{ steps.version.outputs.version }}
           mkdir -p npm/@neex/${{ matrix.platform }}/bin
-          
+
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp crates/target/${{ matrix.target }}/release/neex.exe npm/@neex/${{ matrix.platform }}/bin/
           else
             cp crates/target/${{ matrix.target }}/release/neex npm/@neex/${{ matrix.platform }}/bin/
             chmod +x npm/@neex/${{ matrix.platform }}/bin/neex
           fi
-          
-          # Create package.json
+
           cat > npm/@neex/${{ matrix.platform }}/package.json << EOF
           {
             "name": "@neex/${{ matrix.platform }}",
-            "version": "${GITHUB_REF#refs/tags/v}",
-            "os": ["${OS}"],
-            "cpu": ["${CPU}"],
-            "main": "bin/neex"
+            "version": "$VERSION",
+            "description": "Neex binary for ${{ matrix.platform }}",
+            "repository": {
+              "type": "git",
+              "url": "https://github.com/Neexjs/neex"
+            },
+            "license": "MIT"
           }
           EOF
 
-      - name: Upload Artifact
+      - name: Upload Binary
         uses: actions/upload-artifact@v4
         with:
           name: neex-${{ matrix.platform }}
           path: npm/@neex/${{ matrix.platform }}
 
-  publish:
-    name: Publish to NPM
+  # Publish to NPM
+  publish-npm:
+    name: 📦 Publish to NPM
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -97,6 +93,8 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: neex-*
+          merge-multiple: false
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -106,10 +104,12 @@ jobs:
 
       - name: Publish Platform Packages
         run: |
-          for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64; do
-            cd artifacts/neex-$platform
-            npm publish --access public || true
-            cd ../..
+          for platform in darwin-arm64 darwin-x64 linux-x64 win32-x64; do
+            if [ -d "artifacts/neex-$platform" ]; then
+              cd artifacts/neex-$platform
+              npm publish --access public || true
+              cd ../..
+            fi
           done
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -121,25 +121,85 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-  release:
-    name: GitHub Release
+  # Create GitHub Release
+  github-release:
+    name: 🎉 GitHub Release
     needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get Version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
 
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
+          pattern: neex-*
+          merge-multiple: false
 
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
+      - name: Get Previous Tag
+        id: prev_tag
+        run: |
+          PREV=$(git describe --abbrev=0 --tags HEAD^ 2>/dev/null || echo "")
+          echo "tag=$PREV" >> $GITHUB_OUTPUT
+
+      - name: Generate Release Notes
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          PREV_TAG=${{ steps.prev_tag.outputs.tag }}
+
+          cat > release_notes.md << 'EOF'
+          ### ⚡ Installation
+
+          ```bash
+          npm install -g neex
+          # or
+          pnpm add -g neex
+          ```
+
+          ### 📋 What's Changed
+
+          EOF
+
+          if [ -n "$PREV_TAG" ]; then
+            git log --pretty=format:"* %s" $PREV_TAG..HEAD | head -20 >> release_notes.md
+
+            echo "" >> release_notes.md
+            echo "" >> release_notes.md
+            echo "**Full Changelog**: https://github.com/Neexjs/neex/compare/$PREV_TAG...v$VERSION" >> release_notes.md
+          else
+            echo "🎉 Initial release!" >> release_notes.md
+          fi
+
+          echo "" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "---" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "### 📦 Assets" >> release_notes.md
+          echo "" >> release_notes.md
+          echo "| Platform | File |" >> release_notes.md
+          echo "|----------|------|" >> release_notes.md
+          echo "| macOS (Apple Silicon) | \`neex-darwin-arm64\` |" >> release_notes.md
+          echo "| macOS (Intel) | \`neex-darwin-x64\` |" >> release_notes.md
+          echo "| Linux (x64) | \`neex-linux-x64\` |" >> release_notes.md
+          echo "| Windows (x64) | \`neex-win32-x64.exe\` |" >> release_notes.md
+
+      - name: Prepare Release Assets
+        run: |
+          mkdir -p release_assets
+          cp artifacts/neex-darwin-arm64/bin/neex release_assets/neex-darwin-arm64 || true
+          cp artifacts/neex-darwin-x64/bin/neex release_assets/neex-darwin-x64 || true
+          cp artifacts/neex-linux-x64/bin/neex release_assets/neex-linux-x64 || true
+          cp artifacts/neex-win32-x64/bin/neex.exe release_assets/neex-win32-x64.exe || true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/neex-darwin-arm64/bin/neex
-            artifacts/neex-darwin-x64/bin/neex
-            artifacts/neex-linux-x64/bin/neex
-            artifacts/neex-linux-arm64/bin/neex
-            artifacts/neex-win32-x64/bin/neex.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: "v${{ steps.version.outputs.version }}"
+          body_path: release_notes.md
+          files: release_assets/*
+          token: ${{ secrets.GITHUB_TOKEN }}

@@ -14,21 +14,13 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install Rust
-        uses: dtolnay/rust-action@stable
+      - uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          workspaces: crates
 
       - name: Build
         run: cargo build --all
@@ -42,16 +34,25 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - name: Install Rust
-        uses: dtolnay/rust-action@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
 
-      - name: Check formatting
-        run: cargo fmt --all -- --check
-        working-directory: crates
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates
+
+      - name: Format Check (Auto-fix available)
+        run: |
+          cd crates
+          if ! cargo fmt --all -- --check; then
+            echo "❌ Code formatting issues found!"
+            echo "💡 Run: cargo fmt --all"
+            echo "🤖 Or push to trigger auto-format"
+            exit 1
+          fi
 
       - name: Clippy
         run: cargo clippy --all -- -D warnings

@@ -6,7 +6,9 @@
 //! - Fail-fast: stops on first error
 //! - Respects dependency graph from Phase 5
 
-use anyhow::{anyhow, Result};
+#[cfg(test)]
+use anyhow::anyhow;
+use anyhow::Result;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -90,16 +92,16 @@ impl Scheduler {
         let start = Instant::now();
         let semaphore = Arc::new(Semaphore::new(self.concurrency));
         let (tx, mut rx) = mpsc::channel::<TaskResult>(tasks.len());
-        
+
         // Task state tracking
         let task_count = tasks.len();
         let completed: Arc<Mutex<HashSet<String>>> = Arc::new(Mutex::new(HashSet::new()));
         let failed: Arc<Mutex<bool>> = Arc::new(Mutex::new(false));
-        
+
         // Build dependency map and task map
         let mut dep_map: HashMap<String, Vec<String>> = HashMap::new();
         let mut pending_tasks: HashMap<String, SchedulerTask> = HashMap::new();
-        
+
         for task in tasks {
             dep_map.insert(task.name.clone(), task.dependencies.clone());
             pending_tasks.insert(task.name.clone(), task);
@@ -115,7 +117,7 @@ impl Scheduler {
         // Spawn initial ready tasks
         let mut handles: Vec<JoinHandle<()>> = Vec::new();
         let pending_tasks = Arc::new(Mutex::new(pending_tasks));
-        
+
         for task_name in ready {
             let handle = spawn_task(
                 task_name,
@@ -137,7 +139,7 @@ impl Scheduler {
         while received < task_count {
             if let Some(result) = rx.recv().await {
                 received += 1;
-                
+
                 let _task_name = result.name.clone();
                 let task_succeeded = result.status == TaskStatus::Completed;
 
@@ -150,11 +152,12 @@ impl Scheduler {
                 // If task succeeded, find dependent tasks that are now ready
                 if task_succeeded {
                     let completed_guard = completed.lock().await;
-                    
+
                     // Find tasks whose dependencies are now all satisfied
                     let ready_tasks: Vec<String> = {
                         let pending = pending_tasks.lock().await;
-                        pending.keys()
+                        pending
+                            .keys()
                             .filter(|name| {
                                 if let Some(deps) = dep_map.get(*name) {
                                     deps.iter().all(|d| completed_guard.contains(d))
@@ -195,7 +198,11 @@ impl Scheduler {
         }
 
         let total_duration = start.elapsed();
-        tracing::info!("Scheduler completed {} tasks in {:?}", results.len(), total_duration);
+        tracing::info!(
+            "Scheduler completed {} tasks in {:?}",
+            results.len(),
+            total_duration
+        );
 
         Ok(results)
     }
@@ -214,18 +221,20 @@ fn spawn_task(
     tokio::spawn(async move {
         // Check if we should cancel
         if fail_fast && *failed.lock().await {
-            let _ = tx.send(TaskResult {
-                name: task_name,
-                status: TaskStatus::Cancelled,
-                duration: Duration::ZERO,
-                error: Some("Cancelled due to earlier failure".into()),
-            }).await;
+            let _ = tx
+                .send(TaskResult {
+                    name: task_name,
+                    status: TaskStatus::Cancelled,
+                    duration: Duration::ZERO,
+                    error: Some("Cancelled due to earlier failure".into()),
+                })
+                .await;
             return;
         }
 
         // Acquire semaphore permit
         let _permit = semaphore.acquire().await.unwrap();
-        
+
         // Take task from pending
         let task = {
             let mut pending = pending_tasks.lock().await;
@@ -237,14 +246,12 @@ fn spawn_task(
         };
 
         let start = Instant::now();
-        
+
         // Execute task
-        let result = tokio::task::spawn_blocking(move || {
-            (task.action)()
-        }).await;
+        let result = tokio::task::spawn_blocking(move || (task.action)()).await;
 
         let duration = start.elapsed();
-        
+
         let (status, error) = match result {
             Ok(Ok(())) => (TaskStatus::Completed, None),
             Ok(Err(e)) => (TaskStatus::Failed, Some(e.to_string())),
@@ -256,12 +263,14 @@ fn spawn_task(
             completed.lock().await.insert(task_name.clone());
         }
 
-        let _ = tx.send(TaskResult {
-            name: task_name,
-            status,
-            duration,
-            error,
-        }).await;
+        let _ = tx
+            .send(TaskResult {
+                name: task_name,
+                status,
+                duration,
+                error,
+            })
+            .await;
     })
 }
 
@@ -280,7 +289,7 @@ mod tests {
     async fn test_parallel_execution() {
         // Test: A -> (B, C) should take ~200ms, not 300ms
         // A: 100ms, then B and C run in parallel: 100ms each
-        
+
         let execution_order = Arc::new(Mutex::new(Vec::new()));
         let order_clone1 = Arc::clone(&execution_order);
         let order_clone2 = Arc::clone(&execution_order);
@@ -353,7 +362,7 @@ mod tests {
 
         // Only A should have executed
         assert_eq!(counter.load(Ordering::SeqCst), 1);
-        
+
         // A should be failed
         let a_result = results.iter().find(|r| r.name == "A").unwrap();
         assert_eq!(a_result.status, TaskStatus::Failed);
@@ -364,23 +373,25 @@ mod tests {
         // Test that semaphore limits concurrent tasks
         let max_concurrent = Arc::new(AtomicUsize::new(0));
         let current_concurrent = Arc::new(AtomicUsize::new(0));
-        
-        let tasks: Vec<_> = (0..10).map(|i| {
-            let max = Arc::clone(&max_concurrent);
-            let current = Arc::clone(&current_concurrent);
-            
-            SchedulerTask::new(format!("Task{}", i), vec![], move || {
-                let prev = current.fetch_add(1, Ordering::SeqCst);
-                let now = prev + 1;
-                
-                // Update max if current is higher
-                max.fetch_max(now, Ordering::SeqCst);
-                
-                std::thread::sleep(Duration::from_millis(50));
-                current.fetch_sub(1, Ordering::SeqCst);
-                Ok(())
+
+        let tasks: Vec<_> = (0..10)
+            .map(|i| {
+                let max = Arc::clone(&max_concurrent);
+                let current = Arc::clone(&current_concurrent);
+
+                SchedulerTask::new(format!("Task{}", i), vec![], move || {
+                    let prev = current.fetch_add(1, Ordering::SeqCst);
+                    let now = prev + 1;
+
+                    // Update max if current is higher
+                    max.fetch_max(now, Ordering::SeqCst);
+
+                    std::thread::sleep(Duration::from_millis(50));
+                    current.fetch_sub(1, Ordering::SeqCst);
+                    Ok(())
+                })
             })
-        }).collect();
+            .collect();
 
         let scheduler = Scheduler::new(3); // Limit to 3
         scheduler.execute(tasks).await.unwrap();

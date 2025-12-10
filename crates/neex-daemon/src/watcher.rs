@@ -39,7 +39,7 @@ impl FileWatcher {
     /// Create new file watcher
     pub fn new(root: impl AsRef<Path>) -> Result<Self> {
         let root = root.as_ref().to_path_buf();
-        
+
         let ignore_patterns = vec![
             "node_modules".to_string(),
             ".git".to_string(),
@@ -77,8 +77,7 @@ impl FileWatcher {
     pub fn start(&mut self) -> Result<()> {
         let (tx, rx) = channel();
 
-        let config = Config::default()
-            .with_poll_interval(Duration::from_millis(100));
+        let config = Config::default().with_poll_interval(Duration::from_millis(100));
 
         let mut watcher = RecommendedWatcher::new(tx, config)?;
         watcher.watch(&self.root, RecursiveMode::Recursive)?;

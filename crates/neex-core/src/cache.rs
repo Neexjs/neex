@@ -37,7 +37,7 @@ impl Cache {
 
     fn load_entries(cache_dir: &Path) -> Result<HashMap<String, CacheEntry>> {
         let index_path = cache_dir.join("index.json");
-        
+
         if index_path.exists() {
             let content = fs::read_to_string(&index_path)?;
             Ok(serde_json::from_str(&content)?)

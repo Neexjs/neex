@@ -12,8 +12,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Instant;
-use tokio::process::Command;
 use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::process::Command;
 
 /// Cached task output
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,9 +45,9 @@ impl TaskRunner {
         let root = root.as_ref().to_path_buf();
         let cache_dir = root.join(".neex").join("cache");
         std::fs::create_dir_all(&cache_dir)?;
-        
+
         let db = sled::open(&cache_dir)?;
-        
+
         Ok(Self { root, db })
     }
 
@@ -174,7 +174,7 @@ mod tests {
     async fn test_execute_simple_command() {
         let runner = TaskRunner::new(".").unwrap();
         let output = runner.execute("echo hello").await.unwrap();
-        
+
         assert_eq!(output.exit_code, 0);
         assert!(output.stdout.iter().any(|l| l.contains("hello")));
     }

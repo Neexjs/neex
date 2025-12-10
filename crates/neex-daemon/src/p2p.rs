@@ -58,30 +58,26 @@ impl PeerManager {
     /// Start mDNS discovery and advertisement
     pub async fn start(&mut self, local_port: u16) -> Result<()> {
         let mdns = ServiceDaemon::new()?;
-        
+
         // Advertise our service
-        let hostname = gethostname::gethostname()
-            .to_string_lossy()
-            .to_string();
-        
+        let hostname = gethostname::gethostname().to_string_lossy().to_string();
+
         let service_name = format!("{}-{}", SERVICE_NAME_PREFIX, &self.local_id);
-        let service = ServiceInfo::new(
-            SERVICE_TYPE,
-            &service_name,
-            &hostname,
-            "",
-            local_port,
-            None,
-        )?;
-        
+        let service =
+            ServiceInfo::new(SERVICE_TYPE, &service_name, &hostname, "", local_port, None)?;
+
         mdns.register(service)?;
-        tracing::info!("📡 mDNS: Advertising as {} on port {}", service_name, local_port);
+        tracing::info!(
+            "📡 mDNS: Advertising as {} on port {}",
+            service_name,
+            local_port
+        );
 
         // Browse for peers
         let receiver = mdns.browse(SERVICE_TYPE)?;
         let peers = Arc::clone(&self.peers);
         let local_id = self.local_id.clone();
-        
+
         tokio::spawn(async move {
             while let Ok(event) = receiver.recv() {
                 match event {
@@ -90,14 +86,14 @@ impl PeerManager {
                         if info.get_fullname().contains(&local_id) {
                             continue;
                         }
-                        
+
                         for addr in info.get_addresses() {
                             let peer = PeerInfo {
                                 id: info.get_fullname().to_string(),
                                 addr: SocketAddr::new(*addr, info.get_port()),
                                 hostname: info.get_hostname().to_string(),
                             };
-                            
+
                             tracing::info!("🔗 Peer found: {} at {}", peer.hostname, peer.addr);
                             peers.write().await.insert(peer.id.clone(), peer);
                         }
@@ -124,7 +120,7 @@ impl PeerManager {
     pub async fn fetch_from_peer(&self, peer: &PeerInfo, hash: &str) -> Result<Vec<u8>> {
         let url = format!("http://{}/artifact/{}", peer.addr, hash);
         let resp = reqwest::get(&url).await?;
-        
+
         if resp.status().is_success() {
             Ok(resp.bytes().await?.to_vec())
         } else {
@@ -135,7 +131,7 @@ impl PeerManager {
     /// Try to fetch artifact from any peer
     pub async fn fetch_from_network(&self, hash: &str) -> Option<Vec<u8>> {
         let peers = self.get_peers().await;
-        
+
         for peer in peers {
             match self.fetch_from_peer(&peer, hash).await {
                 Ok(data) => {
@@ -145,7 +141,7 @@ impl PeerManager {
                 Err(_) => continue,
             }
         }
-        
+
         None
     }
 }
@@ -166,7 +162,7 @@ pub async fn start_artifact_server(
     cache_db: sled::Db,
 ) -> Result<(u16, tokio::task::JoinHandle<()>)> {
     let state = Arc::new(ArtifactServerState { cache_db });
-    
+
     let app = Router::new()
         .route("/artifact/:hash", get(get_artifact))
         .route("/health", get(health_check))
@@ -175,7 +171,7 @@ pub async fn start_artifact_server(
     // Bind to random port
     let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await?;
     let port = listener.local_addr()?.port();
-    
+
     tracing::info!("🌐 Artifact server listening on port {}", port);
 
     let handle = tokio::spawn(async move {
@@ -207,25 +203,22 @@ async fn health_check() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[tokio::test]
     async fn test_artifact_server() {
         // Create temp DB
-        let db = sled::Config::new()
-            .temporary(true)
-            .open()
-            .unwrap();
-        
+        let db = sled::Config::new().temporary(true).open().unwrap();
+
         // Store test artifact
         db.insert("test-hash", b"Hello P2P!").unwrap();
-        
+
         // Start server
         let (port, _handle) = start_artifact_server(db).await.unwrap();
-        
+
         // Fetch artifact
         let url = format!("http://127.0.0.1:{}/artifact/test-hash", port);
         let resp = reqwest::get(&url).await.unwrap();
-        
+
         assert!(resp.status().is_success());
         assert_eq!(resp.text().await.unwrap(), "Hello P2P!");
     }
@@ -234,7 +227,7 @@ mod tests {
     async fn test_peer_manager_creation() {
         let pm = PeerManager::new();
         assert!(!pm.local_id().is_empty());
-        
+
         let peers = pm.get_peers().await;
         assert!(peers.is_empty());
     }

@@ -89,7 +89,7 @@ impl DepGraph {
 
         // Step 1: Discover workspaces
         let workspaces = graph.discover_workspaces()?;
-        
+
         // Step 2: Add nodes for each workspace
         for ws_path in &workspaces {
             if let Err(e) = graph.add_workspace_node(ws_path) {
@@ -124,12 +124,10 @@ impl DepGraph {
         for pattern in patterns {
             // Handle glob patterns like "packages/*"
             let glob_pattern = self.root.join(&pattern).to_string_lossy().to_string();
-            
-            for entry in glob::glob(&glob_pattern)? {
-                if let Ok(path) = entry {
-                    if path.is_dir() && path.join("package.json").exists() {
-                        workspaces.push(path);
-                    }
+
+            for path in glob::glob(&glob_pattern)?.flatten() {
+                if path.is_dir() && path.join("package.json").exists() {
+                    workspaces.push(path);
                 }
             }
         }
@@ -143,12 +141,16 @@ impl DepGraph {
         let content = std::fs::read_to_string(&pkg_json_path)?;
         let pkg: PackageJson = serde_json::from_str(&content)?;
 
-        let name = pkg.name.ok_or_else(|| anyhow!("Package has no name: {:?}", ws_path))?;
-        let relative_path = ws_path.strip_prefix(&self.root)
+        let name = pkg
+            .name
+            .ok_or_else(|| anyhow!("Package has no name: {:?}", ws_path))?;
+        let relative_path = ws_path
+            .strip_prefix(&self.root)
             .unwrap_or(ws_path)
             .to_path_buf();
 
-        let scripts: Vec<String> = pkg.scripts
+        let scripts: Vec<String> = pkg
+            .scripts
             .map(|s| s.keys().cloned().collect())
             .unwrap_or_default();
 
@@ -162,7 +164,7 @@ impl DepGraph {
 
         let idx = self.graph.add_node(node);
         self.name_to_idx.insert(name, idx);
-        
+
         Ok(idx)
     }
 
@@ -199,9 +201,10 @@ impl DepGraph {
 
         // Add edges (dependent -> dependency, so dependency comes first in topo sort)
         for (from_name, to_name) in edges {
-            if let (Some(&from_idx), Some(&to_idx)) = 
-                (self.name_to_idx.get(&from_name), self.name_to_idx.get(&to_name)) 
-            {
+            if let (Some(&from_idx), Some(&to_idx)) = (
+                self.name_to_idx.get(&from_name),
+                self.name_to_idx.get(&to_name),
+            ) {
                 // Edge direction: dependent -> dependency
                 // This ensures dependencies come FIRST in topological order
                 self.graph.add_edge(from_idx, to_idx, ());
@@ -253,7 +256,10 @@ impl DepGraph {
 
         while let Some(idx) = queue.pop() {
             // Find all packages that have an edge TO this node (dependents)
-            for neighbor in self.graph.neighbors_directed(idx, petgraph::Direction::Incoming) {
+            for neighbor in self
+                .graph
+                .neighbors_directed(idx, petgraph::Direction::Incoming)
+            {
                 if visited.insert(neighbor) {
                     affected.push(&self.graph[neighbor]);
                     queue.push(neighbor);
@@ -271,7 +277,10 @@ impl DepGraph {
 
     /// Get all packages
     pub fn packages(&self) -> Vec<&WorkspaceNode> {
-        self.graph.node_indices().map(|idx| &self.graph[idx]).collect()
+        self.graph
+            .node_indices()
+            .map(|idx| &self.graph[idx])
+            .collect()
     }
 
     /// Get package count
@@ -301,17 +310,17 @@ mod tests {
     #[test]
     fn test_cycle_detection() {
         let mut dep_graph = DepGraph::new();
-        
-        let idx_a = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "A".into(), 
-            path: PathBuf::new(), 
+
+        let idx_a = dep_graph.graph.add_node(WorkspaceNode {
+            name: "A".into(),
+            path: PathBuf::new(),
             package_json_path: PathBuf::new(),
             version: None,
             scripts: vec![],
         });
-        let idx_b = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "B".into(), 
-            path: PathBuf::new(), 
+        let idx_b = dep_graph.graph.add_node(WorkspaceNode {
+            name: "B".into(),
+            path: PathBuf::new(),
             package_json_path: PathBuf::new(),
             version: None,
             scripts: vec![],
@@ -320,7 +329,7 @@ mod tests {
         // A -> B
         dep_graph.graph.add_edge(idx_a, idx_b, ());
         assert!(!dep_graph.has_cycle(), "Should not detect cycle yet");
-        
+
         // B -> A (creates cycle!)
         dep_graph.graph.add_edge(idx_b, idx_a, ());
         assert!(dep_graph.has_cycle(), "Should detect cycle!");
@@ -329,30 +338,30 @@ mod tests {
     #[test]
     fn test_topological_sort() {
         let mut dep_graph = DepGraph::new();
-        
+
         // utils <- ui <- web
         // utils has no deps, ui depends on utils, web depends on ui and utils
-        
-        let utils_idx = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "@my/utils".into(), 
+
+        let utils_idx = dep_graph.graph.add_node(WorkspaceNode {
+            name: "@my/utils".into(),
             path: PathBuf::from("packages/utils"),
             package_json_path: PathBuf::new(),
             version: None,
             scripts: vec![],
         });
         dep_graph.name_to_idx.insert("@my/utils".into(), utils_idx);
-        
-        let ui_idx = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "@my/ui".into(), 
+
+        let ui_idx = dep_graph.graph.add_node(WorkspaceNode {
+            name: "@my/ui".into(),
             path: PathBuf::from("packages/ui"),
             package_json_path: PathBuf::new(),
             version: None,
             scripts: vec![],
         });
         dep_graph.name_to_idx.insert("@my/ui".into(), ui_idx);
-        
-        let web_idx = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "@my/web".into(), 
+
+        let web_idx = dep_graph.graph.add_node(WorkspaceNode {
+            name: "@my/web".into(),
             path: PathBuf::from("packages/web"),
             package_json_path: PathBuf::new(),
             version: None,
@@ -369,12 +378,12 @@ mod tests {
 
         let order = dep_graph.get_build_order().unwrap();
         let names: Vec<&str> = order.iter().map(|n| n.name.as_str()).collect();
-        
+
         // utils must come before ui, ui must come before web
         let utils_pos = names.iter().position(|&n| n == "@my/utils").unwrap();
         let ui_pos = names.iter().position(|&n| n == "@my/ui").unwrap();
         let web_pos = names.iter().position(|&n| n == "@my/web").unwrap();
-        
+
         assert!(utils_pos < ui_pos, "utils should come before ui");
         assert!(ui_pos < web_pos, "ui should come before web");
     }
@@ -382,27 +391,27 @@ mod tests {
     #[test]
     fn test_affected_packages() {
         let mut dep_graph = DepGraph::new();
-        
-        let utils_idx = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "@my/utils".into(), 
+
+        let utils_idx = dep_graph.graph.add_node(WorkspaceNode {
+            name: "@my/utils".into(),
             path: PathBuf::from("packages/utils"),
             package_json_path: PathBuf::new(),
             version: None,
             scripts: vec![],
         });
         dep_graph.name_to_idx.insert("@my/utils".into(), utils_idx);
-        
-        let ui_idx = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "@my/ui".into(), 
+
+        let ui_idx = dep_graph.graph.add_node(WorkspaceNode {
+            name: "@my/ui".into(),
             path: PathBuf::from("packages/ui"),
             package_json_path: PathBuf::new(),
             version: None,
             scripts: vec![],
         });
         dep_graph.name_to_idx.insert("@my/ui".into(), ui_idx);
-        
-        let web_idx = dep_graph.graph.add_node(WorkspaceNode { 
-            name: "@my/web".into(), 
+
+        let web_idx = dep_graph.graph.add_node(WorkspaceNode {
+            name: "@my/web".into(),
             path: PathBuf::from("packages/web"),
             package_json_path: PathBuf::new(),
             version: None,
@@ -418,7 +427,7 @@ mod tests {
         // If utils changes, both ui and web are affected
         let affected = dep_graph.get_affected("@my/utils");
         let names: Vec<&str> = affected.iter().map(|n| n.name.as_str()).collect();
-        
+
         assert!(names.contains(&"@my/utils"));
         assert!(names.contains(&"@my/ui"));
         assert!(names.contains(&"@my/web"));
