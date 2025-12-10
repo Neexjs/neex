@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+#[cfg(unix)]
 use tokio::net::UnixStream;
 
 /// Neex - Ultra-fast monorepo build tool
@@ -690,6 +691,7 @@ fn dir_size(path: &PathBuf) -> Result<u64> {
     Ok(size)
 }
 
+#[cfg(unix)]
 async fn send_request(socket: &PathBuf, req: DaemonRequest) -> Result<DaemonResponse> {
     let mut stream = UnixStream::connect(socket).await?;
     stream
@@ -703,4 +705,9 @@ async fn send_request(socket: &PathBuf, req: DaemonRequest) -> Result<DaemonResp
     reader.read_line(&mut line).await?;
 
     Ok(serde_json::from_str(&line)?)
+}
+
+#[cfg(windows)]
+async fn send_request(_socket: &PathBuf, _req: DaemonRequest) -> Result<DaemonResponse> {
+    anyhow::bail!("Daemon mode is not supported on Windows")
 }
