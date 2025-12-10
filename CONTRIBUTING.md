@@ -66,6 +66,42 @@ crates/
 └── neex-napi/      # Node.js bindings (future)
 ```
 
+## 🚀 Release Process (Maintainers)
+
+### 1. Update Version Files
+
+```bash
+# Edit these files:
+# - crates/Cargo.toml → version = "X.Y.Z"
+# - npm/neex/package.json → version + optionalDependencies
+```
+
+### 2. Create Version PR
+
+```bash
+git checkout -b chore/version-X.Y.Z
+git add -A
+git commit -m "chore: bump version to X.Y.Z"
+git push -u origin chore/version-X.Y.Z
+# Create PR and merge
+```
+
+### 3. Tag and Release
+
+```bash
+git checkout main
+git pull origin main
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+**⚡ Workflow auto:**
+- Build (macOS, Linux, Windows)
+- Publish to NPM
+- Create GitHub Release
+
+---
+
 ## Questions?
 
 Open an issue or start a discussion on GitHub.
