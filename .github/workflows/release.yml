@@ -202,4 +202,4 @@ jobs:
           name: "v${{ steps.version.outputs.version }}"
           body_path: release_notes.md
           files: release_assets/*
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
