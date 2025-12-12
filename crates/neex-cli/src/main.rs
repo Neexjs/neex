@@ -375,7 +375,12 @@ async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
     Ok(())
 }
 
-async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>, use_raw: bool) -> Result<()> {
+async fn run_all(
+    cwd: &PathBuf,
+    task: &str,
+    concurrency: Option<usize>,
+    use_raw: bool,
+) -> Result<()> {
     let start = Instant::now();
     let graph = DepGraph::from_root(cwd)?;
 
@@ -533,13 +538,22 @@ async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>, use_raw:
         // Wait for TUI thread
         let _ = tui_handle.join();
 
-        println!("✓ {} packages {}ms", order.len(), start.elapsed().as_millis());
+        println!(
+            "✓ {} packages {}ms",
+            order.len(),
+            start.elapsed().as_millis()
+        );
     }
 
     Ok(())
 }
 
-async fn run_changed(cwd: &PathBuf, task: &str, concurrency: Option<usize>, use_raw: bool) -> Result<()> {
+async fn run_changed(
+    cwd: &PathBuf,
+    task: &str,
+    concurrency: Option<usize>,
+    use_raw: bool,
+) -> Result<()> {
     if use_raw {
         println!("▶ {} --changed (TODO: git integration)", task);
     }
