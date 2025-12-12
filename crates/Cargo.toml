@@ -7,7 +7,7 @@ members = [ "neex-cli",
 ]
 
 [workspace.package]
-version = "0.8.15"
+version = "0.8.16"
 edition = "2021"
 authors = ["Foshati"]
 license = "MIT"

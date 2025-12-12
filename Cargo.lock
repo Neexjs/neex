@@ -1380,7 +1380,7 @@ dependencies = [
 
 [[package]]
 name = "neex-cli"
-version = "0.8.15"
+version = "0.8.16"
 dependencies = [
  "anyhow",
  "atty",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "neex-core"
-version = "0.8.15"
+version = "0.8.16"
 dependencies = [
  "anyhow",
  "blake3",
@@ -1427,7 +1427,7 @@ dependencies = [
 
 [[package]]
 name = "neex-daemon"
-version = "0.8.15"
+version = "0.8.16"
 dependencies = [
  "anyhow",
  "axum",
