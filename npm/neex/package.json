@@ -1,6 +1,6 @@
 {
   "name": "neex",
-  "version": "0.8.11",
+  "version": "0.8.15",
   "description": "Ultra-fast monorepo build tool with tiered caching",
   "license": "MIT",
   "repository": {
@@ -30,10 +30,10 @@
     "README.md"
   ],
   "optionalDependencies": {
-    "@neexjs/darwin-arm64": "0.8.11",
-    "@neexjs/darwin-x64": "0.8.11",
-    "@neexjs/linux-x64": "0.8.11",
-    "@neexjs/win32-x64": "0.8.11"
+    "@neexjs/darwin-arm64": "0.8.15",
+    "@neexjs/darwin-x64": "0.8.15",
+    "@neexjs/linux-x64": "0.8.15",
+    "@neexjs/win32-x64": "0.8.15"
   },
   "engines": {
     "node": ">=18"

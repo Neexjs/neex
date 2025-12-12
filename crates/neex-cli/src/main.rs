@@ -418,7 +418,7 @@ async fn run_all(
             println!("✗ {}ok {}fail {}ms", ok, fail, start.elapsed().as_millis());
         }
     } else {
-        // === TUI Mode: Interactive UI ===
+        // === TUI Mode: Interactive UI with parallel execution ===
         let tui_state = Arc::new(Mutex::new(TuiState::default()));
 
         // Add all tasks to TUI
@@ -437,94 +437,142 @@ async fn run_all(
             let _ = tui::run_tui(tui_state_clone);
         });
 
-        // Execute tasks with TUI updates
-        let root = Arc::new(cwd.to_path_buf());
-        let task_name = Arc::new(task.to_string());
+        // Create tasks with TUI updates
+        let tui_tasks: Vec<SchedulerTask> = order
+            .iter()
+            .map(|node| {
+                let name = node.name.clone();
+                let path = node.path.clone();
+                let root = cwd.clone();
+                let task_str = task.to_string();
+                let tui_state_ref = Arc::clone(&tui_state);
 
-        for node in &order {
-            let name = node.name.clone();
-            let path = node.path.clone();
+                // Get dependencies
+                let pkg_path = root.join(&path).join("package.json");
+                let deps = if pkg_path.exists() {
+                    if let Ok(content) = std::fs::read_to_string(&pkg_path) {
+                        if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                            pkg.get("dependencies")
+                                .and_then(|d| d.as_object())
+                                .map(|d| {
+                                    d.keys()
+                                        .filter(|k| order.iter().any(|n| &n.name == *k))
+                                        .cloned()
+                                        .collect::<Vec<_>>()
+                                })
+                                .unwrap_or_default()
+                        } else {
+                            vec![]
+                        }
+                    } else {
+                        vec![]
+                    }
+                } else {
+                    vec![]
+                };
 
-            // Update TUI: Task started
-            {
-                let mut state = tui_state.lock().unwrap();
-                state.update_task(&name, TuiTaskStatus::Running);
-                state.add_log(&name, &format!("▶ Starting {}...", name));
-            }
+                SchedulerTask::new(name.clone(), deps, move || {
+                    let task_start = Instant::now();
 
-            let task_start = Instant::now();
-            let full_path = root.join(&path);
-            let pkg_path = full_path.join("package.json");
-
-            let result = if pkg_path.exists() {
-                let content = std::fs::read_to_string(&pkg_path)?;
-                let pkg: serde_json::Value = serde_json::from_str(&content)?;
-
-                if let Some(cmd) = pkg
-                    .get("scripts")
-                    .and_then(|s| s.get(task_name.as_str()))
-                    .and_then(|c| c.as_str())
-                {
-                    // Add log
+                    // Update TUI: Task started
                     {
-                        let mut state = tui_state.lock().unwrap();
-                        state.add_log(&name, &format!("$ {}", cmd));
+                        let mut state = tui_state_ref.lock().unwrap();
+                        state.update_task(&name, TuiTaskStatus::Running);
+                        state.add_log(&name, &format!("▶ Starting {}...", name));
                     }
 
-                    let output = std::process::Command::new("sh")
-                        .arg("-c")
-                        .arg(cmd)
-                        .current_dir(&full_path)
-                        .output();
+                    let full_path = root.join(&path);
+                    let pkg_path = full_path.join("package.json");
 
-                    match output {
-                        Ok(out) => {
-                            let stdout = String::from_utf8_lossy(&out.stdout);
-                            let stderr = String::from_utf8_lossy(&out.stderr);
+                    let result = if pkg_path.exists() {
+                        let content = std::fs::read_to_string(&pkg_path)?;
+                        let pkg: serde_json::Value = serde_json::from_str(&content)?;
 
-                            // Add output logs
+                        if let Some(cmd) = pkg
+                            .get("scripts")
+                            .and_then(|s| s.get(&task_str))
+                            .and_then(|c| c.as_str())
+                        {
+                            // Add log
                             {
-                                let mut state = tui_state.lock().unwrap();
-                                for line in stdout.lines().take(20) {
-                                    state.add_log(&name, line);
-                                }
-                                for line in stderr.lines().take(10) {
-                                    state.add_log(&name, &format!("⚠ {}", line));
-                                }
+                                let mut state = tui_state_ref.lock().unwrap();
+                                state.add_log(&name, &format!("$ {}", cmd));
                             }
 
-                            out.status.success()
+                            let output = std::process::Command::new("sh")
+                                .arg("-c")
+                                .arg(cmd)
+                                .current_dir(&full_path)
+                                .output();
+
+                            match output {
+                                Ok(out) => {
+                                    let stdout = String::from_utf8_lossy(&out.stdout);
+                                    let stderr = String::from_utf8_lossy(&out.stderr);
+
+                                    // Add output logs
+                                    {
+                                        let mut state = tui_state_ref.lock().unwrap();
+                                        for line in stdout.lines().take(20) {
+                                            state.add_log(&name, line);
+                                        }
+                                        for line in stderr.lines().take(10) {
+                                            state.add_log(&name, &format!("⚠ {}", line));
+                                        }
+                                    }
+
+                                    out.status.success()
+                                }
+                                Err(e) => {
+                                    let mut state = tui_state_ref.lock().unwrap();
+                                    state.add_log(&name, &format!("Error: {}", e));
+                                    false
+                                }
+                            }
+                        } else {
+                            // No script found
+                            let mut state = tui_state_ref.lock().unwrap();
+                            state.add_log(&name, "⚡ Skipped (no script)");
+                            true
                         }
-                        Err(e) => {
-                            let mut state = tui_state.lock().unwrap();
-                            state.add_log(&name, &format!("Error: {}", e));
-                            false
+                    } else {
+                        true
+                    };
+
+                    let elapsed = task_start.elapsed().as_millis() as u64;
+
+                    // Update TUI: Task completed
+                    {
+                        let mut state = tui_state_ref.lock().unwrap();
+                        if result {
+                            state.update_task(&name, TuiTaskStatus::Completed(elapsed));
+                            state.add_log(&name, &format!("✓ Done in {}ms", elapsed));
+                        } else {
+                            state.update_task(
+                                &name,
+                                TuiTaskStatus::Failed("Build failed".to_string()),
+                            );
+                            state.add_log(&name, "✗ Failed");
+                            return Err(anyhow::anyhow!("Task {} failed", name));
                         }
                     }
-                } else {
-                    // No script found
-                    let mut state = tui_state.lock().unwrap();
-                    state.add_log(&name, "⚡ Skipped (no script)");
-                    true
-                }
-            } else {
-                true
-            };
 
-            let elapsed = task_start.elapsed().as_millis() as u64;
+                    Ok(())
+                })
+            })
+            .collect();
 
-            // Update TUI: Task completed
-            {
-                let mut state = tui_state.lock().unwrap();
-                if result {
-                    state.update_task(&name, TuiTaskStatus::Completed(elapsed));
-                    state.add_log(&name, &format!("✓ Done in {}ms", elapsed));
-                } else {
-                    state.update_task(&name, TuiTaskStatus::Failed("Build failed".to_string()));
-                    state.add_log(&name, "✗ Failed");
-                }
-            }
-        }
+        // Execute tasks in parallel using Scheduler
+        let results = Scheduler::new(c).execute(tui_tasks).await?;
+
+        let ok = results
+            .iter()
+            .filter(|r| r.status == neex_core::TaskStatus::Completed)
+            .count();
+        let fail = results
+            .iter()
+            .filter(|r| r.status == neex_core::TaskStatus::Failed)
+            .count();
 
         // Wait a moment for user to see results
         std::thread::sleep(std::time::Duration::from_secs(2));
@@ -538,11 +586,11 @@ async fn run_all(
         // Wait for TUI thread
         let _ = tui_handle.join();
 
-        println!(
-            "✓ {} packages {}ms",
-            order.len(),
-            start.elapsed().as_millis()
-        );
+        if fail == 0 {
+            println!("✓ {} packages {}ms", ok, start.elapsed().as_millis());
+        } else {
+            println!("✗ {}ok {}fail {}ms", ok, fail, start.elapsed().as_millis());
+        }
     }
 
     Ok(())

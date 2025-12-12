@@ -1,7 +1,7 @@
 <div align="center">
  <a href="https://github.com/Neexjs">
 <picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://neex.storage.c2.liara.space/Neex.png">
+<source media="(prefers-color-scheme: dark)" srcset="https://i.ibb.co/6ct76YVN/neex.png">
 <img width="130" height="120" alt="Neex" src="https://github.com/user-attachments/assets/e64198e3-6489-4067-9d8a-19ef06d135da" style="border-radius: 50%;" />
 </picture>
 </a>
