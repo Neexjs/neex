@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@tailwindcss/postcss": "^4.1.17",
-    "neex": "^0.8.9",
+    "neex": "^0.8.11",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.17"
   }
