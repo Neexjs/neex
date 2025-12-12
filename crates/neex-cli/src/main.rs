@@ -3,9 +3,10 @@
 //! Task-First Design: Any task runs directly
 //!
 //! Usage:
-//!   neex build              # Run build task
+//!   neex build              # Run build task (with TUI)
 //!   neex dev --filter=web   # Run dev on web package
 //!   neex test --all         # Run test on all packages
+//!   neex build --raw        # Simple line output (CI-friendly)
 //!   neex --graph            # Show dependency graph
 //!   neex --login            # Setup cloud cache
 
@@ -20,11 +21,12 @@ use neex_core::{
 };
 use neex_daemon::{DaemonRequest, DaemonResponse};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 #[cfg(unix)]
 use tokio::net::UnixStream;
+use tui::{TaskStatus as TuiTaskStatus, TuiState};
 
 /// Neex - Ultra-fast monorepo build tool
 #[derive(Parser)]
@@ -108,6 +110,13 @@ struct Cli {
     /// Stop daemon
     #[arg(long)]
     daemon_stop: bool,
+
+    // ═══════════════════════════════════════
+    // Output Mode
+    // ═══════════════════════════════════════
+    /// Use simple line output instead of TUI (CI-friendly)
+    #[arg(long, short = 'r')]
+    raw: bool,
 }
 
 fn get_socket_path() -> PathBuf {
@@ -179,12 +188,14 @@ async fn main() -> Result<()> {
     };
 
     // Run task with flags
+    let use_raw = cli.raw || !atty::is(atty::Stream::Stdout);
+
     if cli.symbols {
         run_symbols(&cwd, &task).await
     } else if cli.all {
-        run_all(&cwd, &task, cli.concurrency).await
+        run_all(&cwd, &task, cli.concurrency, use_raw).await
     } else if cli.changed {
-        run_changed(&cwd, &task, cli.concurrency).await
+        run_changed(&cwd, &task, cli.concurrency, use_raw).await
     } else if let Some(pkg) = cli.filter {
         run_filtered(&cwd, &task, &pkg).await
     } else {
@@ -284,7 +295,7 @@ async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
         Err(e) => {
             println!("⚠️ Symbol graph failed: {}", e);
             println!("  Falling back to normal build...");
-            return run_all(cwd, task, None).await;
+            return run_all(cwd, task, None, true).await; // fallback to raw mode
         }
     };
 
@@ -364,7 +375,7 @@ async fn run_symbols(cwd: &PathBuf, task: &str) -> Result<()> {
     Ok(())
 }
 
-async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Result<()> {
+async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>, use_raw: bool) -> Result<()> {
     let start = Instant::now();
     let graph = DepGraph::from_root(cwd)?;
 
@@ -373,39 +384,166 @@ async fn run_all(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Resul
         return Ok(());
     }
 
-    println!("▶ {} --all ({} packages)", task, graph.package_count());
-
     let order = graph.get_build_order()?;
-    let tasks = create_tasks(cwd, &order, task, &graph);
-
     let c = concurrency.unwrap_or_else(|| {
         std::thread::available_parallelism()
             .map(|p| p.get())
             .unwrap_or(4)
     });
 
-    let results = Scheduler::new(c).execute(tasks).await?;
+    if use_raw {
+        // === Raw Mode: Simple line output ===
+        println!("▶ {} --all ({} packages)", task, graph.package_count());
 
-    let ok = results
-        .iter()
-        .filter(|r| r.status == neex_core::TaskStatus::Completed)
-        .count();
-    let fail = results
-        .iter()
-        .filter(|r| r.status == neex_core::TaskStatus::Failed)
-        .count();
+        let tasks = create_tasks(cwd, &order, task, &graph);
+        let results = Scheduler::new(c).execute(tasks).await?;
 
-    if fail == 0 {
-        println!("✓ {} packages {}ms", ok, start.elapsed().as_millis());
+        let ok = results
+            .iter()
+            .filter(|r| r.status == neex_core::TaskStatus::Completed)
+            .count();
+        let fail = results
+            .iter()
+            .filter(|r| r.status == neex_core::TaskStatus::Failed)
+            .count();
+
+        if fail == 0 {
+            println!("✓ {} packages {}ms", ok, start.elapsed().as_millis());
+        } else {
+            println!("✗ {}ok {}fail {}ms", ok, fail, start.elapsed().as_millis());
+        }
     } else {
-        println!("✗ {}ok {}fail {}ms", ok, fail, start.elapsed().as_millis());
+        // === TUI Mode: Interactive UI ===
+        let tui_state = Arc::new(Mutex::new(TuiState::default()));
+
+        // Add all tasks to TUI
+        {
+            let mut state = tui_state.lock().unwrap();
+            for node in &order {
+                state.add_task(&node.name);
+            }
+        }
+
+        // Clone for TUI thread
+        let tui_state_clone = Arc::clone(&tui_state);
+
+        // Start TUI in background thread
+        let tui_handle = std::thread::spawn(move || {
+            let _ = tui::run_tui(tui_state_clone);
+        });
+
+        // Execute tasks with TUI updates
+        let root = Arc::new(cwd.to_path_buf());
+        let task_name = Arc::new(task.to_string());
+
+        for node in &order {
+            let name = node.name.clone();
+            let path = node.path.clone();
+
+            // Update TUI: Task started
+            {
+                let mut state = tui_state.lock().unwrap();
+                state.update_task(&name, TuiTaskStatus::Running);
+                state.add_log(&name, &format!("▶ Starting {}...", name));
+            }
+
+            let task_start = Instant::now();
+            let full_path = root.join(&path);
+            let pkg_path = full_path.join("package.json");
+
+            let result = if pkg_path.exists() {
+                let content = std::fs::read_to_string(&pkg_path)?;
+                let pkg: serde_json::Value = serde_json::from_str(&content)?;
+
+                if let Some(cmd) = pkg
+                    .get("scripts")
+                    .and_then(|s| s.get(task_name.as_str()))
+                    .and_then(|c| c.as_str())
+                {
+                    // Add log
+                    {
+                        let mut state = tui_state.lock().unwrap();
+                        state.add_log(&name, &format!("$ {}", cmd));
+                    }
+
+                    let output = std::process::Command::new("sh")
+                        .arg("-c")
+                        .arg(cmd)
+                        .current_dir(&full_path)
+                        .output();
+
+                    match output {
+                        Ok(out) => {
+                            let stdout = String::from_utf8_lossy(&out.stdout);
+                            let stderr = String::from_utf8_lossy(&out.stderr);
+
+                            // Add output logs
+                            {
+                                let mut state = tui_state.lock().unwrap();
+                                for line in stdout.lines().take(20) {
+                                    state.add_log(&name, line);
+                                }
+                                for line in stderr.lines().take(10) {
+                                    state.add_log(&name, &format!("⚠ {}", line));
+                                }
+                            }
+
+                            out.status.success()
+                        }
+                        Err(e) => {
+                            let mut state = tui_state.lock().unwrap();
+                            state.add_log(&name, &format!("Error: {}", e));
+                            false
+                        }
+                    }
+                } else {
+                    // No script found
+                    let mut state = tui_state.lock().unwrap();
+                    state.add_log(&name, "⚡ Skipped (no script)");
+                    true
+                }
+            } else {
+                true
+            };
+
+            let elapsed = task_start.elapsed().as_millis() as u64;
+
+            // Update TUI: Task completed
+            {
+                let mut state = tui_state.lock().unwrap();
+                if result {
+                    state.update_task(&name, TuiTaskStatus::Completed(elapsed));
+                    state.add_log(&name, &format!("✓ Done in {}ms", elapsed));
+                } else {
+                    state.update_task(&name, TuiTaskStatus::Failed("Build failed".to_string()));
+                    state.add_log(&name, "✗ Failed");
+                }
+            }
+        }
+
+        // Wait a moment for user to see results
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        // Signal TUI to quit
+        {
+            let mut state = tui_state.lock().unwrap();
+            state.should_quit = true;
+        }
+
+        // Wait for TUI thread
+        let _ = tui_handle.join();
+
+        println!("✓ {} packages {}ms", order.len(), start.elapsed().as_millis());
     }
+
     Ok(())
 }
 
-async fn run_changed(cwd: &PathBuf, task: &str, concurrency: Option<usize>) -> Result<()> {
-    println!("▶ {} --changed (TODO: git integration)", task);
-    run_all(cwd, task, concurrency).await
+async fn run_changed(cwd: &PathBuf, task: &str, concurrency: Option<usize>, use_raw: bool) -> Result<()> {
+    if use_raw {
+        println!("▶ {} --changed (TODO: git integration)", task);
+    }
+    run_all(cwd, task, concurrency, use_raw).await
 }
 
 async fn run_filtered(cwd: &PathBuf, task: &str, pkg: &str) -> Result<()> {

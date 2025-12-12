@@ -4,3 +4,71 @@
 [workspace]
 resolver = "2"
 members = ["crates/*"]
+exclude = ["crates/target"]
+
+[workspace.package]
+version = "0.8.11"
+edition = "2021"
+authors = ["Foshati"]
+license = "MIT"
+repository = "https://github.com/Neexjs/neex"
+
+[workspace.dependencies]
+# Hashing
+blake3 = "1.5"
+
+# Parallelism
+rayon = "1.10"
+
+# File walking
+ignore = "0.4"
+walkdir = "2.5"
+
+# CLI parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Async
+tokio = { version = "1.42", features = ["full"] }
+
+# File watching
+notify = "7.0"
+
+# Graph
+petgraph = "0.8"
+
+# Glob patterns
+glob = "0.3"
+
+# Key-Value DB
+sled = "0.34"
+
+# JS/TS Parser (AST Hashing) - tree-sitter is more stable
+tree-sitter = "0.22"
+tree-sitter-javascript = "0.21"
+tree-sitter-typescript = "0.21"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "2.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# P2P Networking
+axum = "0.7"
+mdns-sd = "0.12"
+reqwest = { version = "0.12", features = ["json"] }
+uuid = { version = "1.0", features = ["v4"] }
+gethostname = "0.5"
+
+# Cloud Storage (S3/R2) - rusty-s3 is lighter than aws-sdk
+rusty-s3 = "0.5"
+
+# Interactive CLI
+dialoguer = "0.11"
+dirs = "5.0"
