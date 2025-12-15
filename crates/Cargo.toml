@@ -31,7 +31,7 @@ clap = { version = "4.4", features = ["derive"] }
 tokio = { version = "1.42", features = ["full"] }
 
 # File watching
-notify = "7.0"
+notify = "8.2"
 
 # Graph
 petgraph = "0.8"
