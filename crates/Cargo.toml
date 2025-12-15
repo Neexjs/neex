@@ -61,7 +61,7 @@ tracing-subscriber = "0.3"
 
 # P2P Networking
 axum = "0.7"
-mdns-sd = "0.12"
+mdns-sd = "0.17"
 reqwest = { version = "0.12", features = ["json"] }
 uuid = { version = "1.0", features = ["v4"] }
 gethostname = "0.5"
