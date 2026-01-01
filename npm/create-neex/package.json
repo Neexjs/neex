@@ -1,6 +1,6 @@
 {
   "name": "create-neex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Create a new Neex monorepo with one command",
   "author": "Neexjs",
   "license": "MIT",
@@ -23,7 +23,6 @@
     "dev": "tsup src/index.ts --format esm --watch",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit"
-
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
