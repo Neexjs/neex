@@ -22,14 +22,8 @@
 ## ⚡ Quick Start
 
 ```bash
-# npm
-npx create-neex@latest
-
 # pnpm
 pnpm create neex
-
-# bun
-bunx create-neex
 ```
 
 ---
@@ -49,10 +43,7 @@ bunx create-neex
   ❯ ⚡ Next.js + Hono (Recommended)
     🚀 Next.js + Express
 ? Select package manager:
-  ❯ 🥟 Bun (Fastest)
-    📦 pnpm
-    📦 npm
-    🧶 Yarn
+  ❯ 📦 pnpm
 ? Initialize a git repository? Yes
 
 ✓ Project my-app created successfully!
