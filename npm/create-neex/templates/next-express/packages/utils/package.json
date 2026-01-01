@@ -1,0 +1,18 @@
+{
+  "name": "@{{projectName}}/utils",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "echo 'Utils package built'",
+    "lint": "echo 'Lint passed'"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}

@@ -114,5 +114,6 @@ tmp/
 # Rust
 target/
 crates/target/
+Cargo.lock
 crates/Cargo.lock
 help/
