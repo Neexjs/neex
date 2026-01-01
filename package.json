@@ -8,7 +8,8 @@
   "scripts": {
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "build": "pnpm --filter \"./npm/*\" run build"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",
