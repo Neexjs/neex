@@ -6,7 +6,6 @@
       "name": "neex-demo",
       "dependencies": {
         "@tailwindcss/postcss": "^4.1.17",
-        "neex": "^0.8.9",
         "postcss": "^8.5.6",
         "tailwindcss": "^4.1.17",
       },
@@ -202,14 +201,6 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
-
-    "@neexjs/darwin-arm64": ["@neexjs/darwin-arm64@0.8.11", "", {}, "sha512-SLCwWGjtFDE3kFPj3sVvWL12iOaa3Y7hs2AWRx31hmAcGjCsd45laamYY6ePvzsndcRedwG9YURkBuxMj/oE4Q=="],
-
-    "@neexjs/darwin-x64": ["@neexjs/darwin-x64@0.8.11", "", {}, "sha512-qDApKZ+OcCbCSodGSW/tGwtnW6yg9+PvpdQJeVeX5LvCAa+OpsAof5mJnOooG7JcBLc+A6lBwrAGJreOrW2bKA=="],
-
-    "@neexjs/linux-x64": ["@neexjs/linux-x64@0.8.11", "", {}, "sha512-dEX9KHm9jt2k2ln8m6Rxw4M/qxnjnVejOV4aGViPw4q1frZXJNukOtWSBZhNJolLMbite8muNJXulBDqg8vUKA=="],
-
-    "@neexjs/win32-x64": ["@neexjs/win32-x64@0.8.11", "", {}, "sha512-0+ALmtGsBxZtWjaG10CCOQIUDhTAOo1M0TFkaUdWJOdO7E8d6WGEAKWEsD8GUKTj5ERjth3kSzz4h8mqj5bPtA=="],
 
     "@next/env": ["@next/env@16.0.8", "", {}, "sha512-xP4WrQZuj9MdmLJy3eWFHepo+R3vznsMSS8Dy3wdA7FKpjCiesQ6DxZvdGziQisj0tEtCgBKJzjcAc4yZOgLEQ=="],
 
@@ -682,8 +673,6 @@
     "nanoid": ["nanoid@3.3.11", "", { "bin": { "nanoid": "bin/nanoid.cjs" } }, "sha512-N8SpfPUnUp1bK+PMYW8qSWdl9U+wwNWI4QKxOYDy9JAro3WMX7p2OeVRF9v+347pnakNevPmiHhNmZ2HbFA76w=="],
 
     "natural-compare": ["natural-compare@1.4.0", "", {}, "sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw=="],
-
-    "neex": ["neex@0.8.11", "", { "optionalDependencies": { "@neexjs/darwin-arm64": "0.8.11", "@neexjs/darwin-x64": "0.8.11", "@neexjs/linux-x64": "0.8.11", "@neexjs/win32-x64": "0.8.11" }, "bin": { "neex": "bin/neex" } }, "sha512-uLfb6Fcd+/ZuvN6tGuCL14fWV/7ch8A1sT2CX+DGGO/nEi0e8GEditTCLHtxMFYVL86ku1Vr7wNu0ua8kfZxhA=="],
 
     "negotiator": ["negotiator@1.0.0", "", {}, "sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg=="],
 

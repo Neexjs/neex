@@ -1,9 +1,9 @@
 <div align="center">
  <a href="https://github.com/Neexjs">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://neex.storage.c2.liara.space/Neex.png">
-<img width="130" height="120" alt="Neex" src="https://github.com/user-attachments/assets/e64198e3-6489-4067-9d8a-19ef06d135da" style="border-radius: 50%;" />
-</picture>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://neex.storage.c2.liara.space/Neex.png">
+      <img alt="Neex logo" src="https://neex.storage.c2.liara.space/Neex.png" height="150" style="border-radius: 12px;">
+    </picture>
 </a>
 
 <h1>Neex</h1>
