@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { displayNeexLogo } from "./utils/logo.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const version = "0.1.6";
+const version = "0.1.7";
 
 // Types
 type Template = "next-hono" | "next-express";
