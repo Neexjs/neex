@@ -198,6 +198,8 @@ async fn main() -> Result<()> {
         run_changed(&cwd, &task, cli.concurrency, use_raw).await
     } else if let Some(pkg) = cli.filter {
         run_filtered(&cwd, &task, &pkg).await
+    } else if task == "init" {
+        run_init().await
     } else {
         run_task(&cwd, &task).await
     }
@@ -618,6 +620,40 @@ async fn run_filtered(cwd: &PathBuf, task: &str, pkg: &str) -> Result<()> {
     } else {
         println!("❌ Package '{}' not found", pkg);
         Ok(())
+    }
+}
+
+async fn run_init() -> Result<()> {
+    println!("✨ Initializing new Neex project...");
+
+    let mut cmd = std::process::Command::new("pnpm");
+    cmd.arg("create")
+       .arg("neex")
+       .stdin(std::process::Stdio::inherit())
+       .stdout(std::process::Stdio::inherit())
+       .stderr(std::process::Stdio::inherit());
+
+    let status = cmd.status();
+
+    match status {
+        Ok(s) if s.success() => Ok(()),
+        Ok(_) => Err(anyhow::anyhow!("Initialization failed")),
+        Err(e) => {
+             // Fallback to npx if pnpm is not found, though we prefer pnpm
+             println!("⚠️ pnpm not found (error: {}), trying npx...", e);
+             let mut cmd = std::process::Command::new("npx");
+             cmd.arg("create-neex@latest")
+                .stdin(std::process::Stdio::inherit())
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit());
+
+             let status = cmd.status()?;
+             if status.success() {
+                 Ok(())
+             } else {
+                 Err(anyhow::anyhow!("Initialization failed"))
+             }
+        }
     }
 }
 
