@@ -7,7 +7,7 @@ members = ["crates/*"]
 exclude = ["crates/target"]
 
 [workspace.package]
-version = "0.8.16"
+version = "0.8.20"
 edition = "2021"
 authors = ["Foshati"]
 license = "MIT"
