@@ -121,6 +121,14 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Publish Create Neex Package
+        run: |
+          cd npm/create-neex
+          npm install
+          npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
   # Create GitHub Release
   github-release:
     name: 🎉 GitHub Release
