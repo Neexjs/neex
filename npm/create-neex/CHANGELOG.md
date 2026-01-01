@@ -1,5 +1,11 @@
 # create-neex
 
+## 0.2.1
+
+### Patch Changes
+
+- chore: enforce pnpm usage and remove other package managers
+
 ## 0.2.0
 
 ### Minor Changes

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { displayNeexLogo } from "./utils/logo.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const version = "0.2.0";
+const version = "0.2.1";
 
 // Types
 type Template = "next-hono" | "next-express";
@@ -242,10 +242,6 @@ async function main(): Promise<void> {
     .description("Create a new Neex monorepo with one command")
     .version(`v${version}`, "-v, --version")
     .argument("[projectName]", "Name of the project")
-    .option("--npm", "Use npm as package manager")
-    .option("--pnpm", "Use pnpm as package manager")
-    .option("--yarn", "Use yarn as package manager")
-    .option("--bun", "Use bun as package manager")
     .option("-t, --template <template>", "Template (next-hono or next-express)")
     .option("--no-git", "Skip git initialization");
 
@@ -312,46 +308,13 @@ async function main(): Promise<void> {
       template = templateResult as Template;
     }
 
-    // Step 3: Select package manager
-    let selectedPm: PackageManager;
+    // Step 3: Select package manager (Forced to pnpm)
+    // We only support pnpm now as requested
+    const selectedPm: PackageManager = "pnpm";
 
-    const pmFlags = { npm: options.npm, pnpm: options.pnpm, yarn: options.yarn, bun: options.bun };
-    const selectedFlags = Object.entries(pmFlags).filter(([, v]) => v);
-
-    if (selectedFlags.length > 1) {
-      p.cancel(`${pc.red("✗")} Multiple package manager flags specified.`);
-      process.exit(1);
-    }
-
-    if (selectedFlags.length === 1) {
-      selectedPm = selectedFlags[0][0] as PackageManager;
-      if (!(await isPackageManagerInstalled(selectedPm))) {
-        p.cancel(`${pc.red("✗")} ${selectedPm} is not installed.`);
-        process.exit(1);
-      }
-    } else {
-      const pmOptions = await Promise.all(
-        (["bun", "pnpm", "npm", "yarn"] as PackageManager[]).map(async (pm) => {
-          const installed = await isPackageManagerInstalled(pm);
-          return {
-            value: pm,
-            label: pm === "bun" ? "🥟 Bun" : pm === "pnpm" ? "📦 pnpm" : pm === "yarn" ? "🧶 Yarn" : "📦 npm",
-            hint: !installed ? pc.yellow("Not installed") : pm === "bun" ? "Fastest" : undefined,
-          };
-        })
-      );
-
-      const pmResult = await p.select({
-        message: "Select package manager:",
-        options: pmOptions,
-      });
-
-      if (p.isCancel(pmResult)) {
-        p.cancel("Operation cancelled.");
-        process.exit(0);
-      }
-
-      selectedPm = pmResult as PackageManager;
+    if (!(await isPackageManagerInstalled("pnpm"))) {
+       p.cancel(`${pc.red("✗")} pnpm is not installed. Please install pnpm first.`);
+       process.exit(1);
     }
 
     // Step 4: Git init?
