@@ -1,0 +1,56 @@
+{
+  "name": "create-neex",
+  "version": "0.1.6",
+  "description": "Create a new Neex monorepo with one command",
+  "author": "Neexjs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Neexjs/neex.git",
+    "directory": "npm/create-neex"
+  },
+  "type": "module",
+  "bin": {
+    "create-neex": "./dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "dev": "tsup src/index.ts --format esm --watch",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.9.1",
+    "commander": "^13.1.0",
+    "cross-spawn": "^7.0.6",
+    "gradient-string": "^3.0.0",
+    "log-update": "^6.1.0",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/cross-spawn": "^6.0.6",
+    "@types/gradient-string": "^1.1.6",
+    "@types/node": "^22.15.3",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "neex",
+    "monorepo",
+    "create",
+    "cli",
+    "scaffold",
+    "nextjs",
+    "hono",
+    "express"
+  ]
+}
