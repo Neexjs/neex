@@ -1,5 +1,11 @@
 # create-neex
 
+## 0.2.0
+
+### Minor Changes
+
+- chore: release v0.2.0 to resolve npm registry conflicts
+
 ## 0.1.8
 
 ### Patch Changes
