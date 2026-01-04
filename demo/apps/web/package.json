@@ -7,18 +7,18 @@
     "dev": "bunx next dev --port 3000",
     "build": "bunx next build",
     "start": "bunx next start",
-    "lint": "echo 'Lint passed'",
+    "lint": "eslint . --ext .ts,.tsx",
     "test": "echo 'Tests passed'"
   },
   "dependencies": {
-    "@demo/ui": "*",
+    "@demo/ui": "workspace:*",
     "next": "^16.0.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
-    "@demo/eslint-config": "*",
-    "@demo/typescript-config": "*",
+    "@demo/eslint-config": "workspace:*",
+    "@demo/typescript-config": "workspace:*",
     "@types/node": "^22.15.3",
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",

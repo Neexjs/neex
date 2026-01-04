@@ -1,3 +1,5 @@
 packages:
   - "npm/*"
   - "demo"
+  - "demo/apps/*"
+  - "demo/packages/*"
