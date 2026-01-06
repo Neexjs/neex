@@ -107,7 +107,11 @@ impl TuiState {
                 _ => {}
             }
 
-            self.progress = self.completed_tasks as f64 / self.total_tasks as f64;
+            self.progress = if self.total_tasks > 0 {
+                self.completed_tasks as f64 / self.total_tasks as f64
+            } else {
+                0.0
+            };
         }
     }
 
@@ -292,27 +296,25 @@ fn draw_sidebar(f: &mut Frame, area: Rect, state: &TuiState) {
         .enumerate()
         .map(|(i, task)| {
             let (icon, style) = match &task.status {
-                TaskStatus::Pending => ("⏸", Style::default().fg(Color::DarkGray)),
-                TaskStatus::Running => ("⏳", Style::default().fg(Color::Yellow)),
+                TaskStatus::Pending => ("⏸".to_string(), Style::default().fg(Color::DarkGray)),
+                TaskStatus::Running => ("⏳".to_string(), Style::default().fg(Color::Yellow)),
                 TaskStatus::Completed(ms) => {
-                    let text = format!("✓ {} {}ms", task.name, ms);
-                    return ListItem::new(text).style(Style::default().fg(Color::Green));
+                    (format!("✓ {}ms", ms), Style::default().fg(Color::Green))
                 }
                 TaskStatus::Cached(ms) => {
-                    let text = format!("⚡ {} {}ms", task.name, ms);
-                    return ListItem::new(text).style(Style::default().fg(Color::Cyan));
+                    (format!("⚡ {}ms", ms), Style::default().fg(Color::Cyan))
                 }
-                TaskStatus::Failed(_) => ("✗", Style::default().fg(Color::Red)),
+                TaskStatus::Failed(_) => ("✗".to_string(), Style::default().fg(Color::Red)),
             };
 
             let text = format!("{} {}", icon, task.name);
-            let mut item = ListItem::new(text).style(style);
+            let final_style = if i == state.selected {
+                style.add_modifier(Modifier::REVERSED)
+            } else {
+                style
+            };
 
-            if i == state.selected {
-                item = item.style(style.add_modifier(Modifier::REVERSED));
-            }
-
-            item
+            ListItem::new(text).style(final_style)
         })
         .collect();
 
