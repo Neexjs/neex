@@ -318,7 +318,9 @@ fn draw_sidebar(f: &mut Frame, area: Rect, state: &TuiState) {
         })
         .collect();
 
-    let cache_rate = (state.cache_hits * 100).checked_div(state.total_tasks).unwrap_or(0);
+    let cache_rate = (state.cache_hits * 100)
+        .checked_div(state.total_tasks)
+        .unwrap_or(0);
 
     let title = format!("📦 Tasks (Cache: {}%)", cache_rate);
     let list = List::new(items)
