@@ -19,7 +19,7 @@
     "workspace"
   ],
   "bin": {
-    "neex": "bin/neex"
+    "neex": "bin/neex.js"
   },
   "scripts": {
     "postinstall": "node install.js"
@@ -32,6 +32,7 @@
   "optionalDependencies": {
     "@neexjs/darwin-arm64": "0.8.20",
     "@neexjs/darwin-x64": "0.8.20",
+    "@neexjs/linux-arm64": "0.8.20",
     "@neexjs/linux-x64": "0.8.20",
     "@neexjs/win32-x64": "0.8.20"
   },

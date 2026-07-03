@@ -1,13 +1,7 @@
 #!/usr/bin/env node
-/**
- * Neex - Install Script
- *
- * Downloads the correct binary for the current platform/arch
- * Supports: darwin-arm64, darwin-x64, linux-x64, linux-arm64, win32-x64
- */
-
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const os = require('os');
 
 const PLATFORMS = {
@@ -38,12 +32,14 @@ function findBinary() {
 
   // Try to find the platform-specific package
   const possiblePaths = [
+    // Next to this script (if postinstall succeeded)
+    path.join(__dirname, process.platform === 'win32' ? 'neex.exe' : 'neex'),
     // npm installs
-    path.join(__dirname, 'node_modules', pkg, 'bin', 'neex'),
-    path.join(__dirname, '..', pkg, 'bin', 'neex'),
-    // pnpm installs
+    path.join(__dirname, '..', 'node_modules', pkg, 'bin', 'neex'),
     path.join(__dirname, '..', '..', pkg, 'bin', 'neex'),
+    // pnpm installs
     path.join(__dirname, '..', '..', '..', pkg, 'bin', 'neex'),
+    path.join(__dirname, '..', '..', '..', '..', pkg, 'bin', 'neex'),
   ];
 
   try {
@@ -65,39 +61,25 @@ function findBinary() {
   return null;
 }
 
-function copyBinary() {
-  const sourcePath = findBinary();
+function run() {
+  const binaryPath = findBinary();
 
-  if (!sourcePath) {
-    console.log('⚠️ Binary not found in optional dependencies');
-    console.log('   This is normal for development. Build from source:');
-    console.log('   cargo build --release -p neex-cli');
-    return;
+  if (!binaryPath) {
+    console.error('❌ Could not find Neex binary for your platform.');
+    console.error('   Please ensure you have installed it correctly.');
+    console.error('   If you are building from source, make sure to compile neex-cli first.');
+    process.exit(1);
   }
 
-  const targetPath = path.join(__dirname, 'bin', process.platform === 'win32' ? 'neex.exe' : 'neex');
-  const targetDir = path.dirname(targetPath);
+  const { status, signal } = spawnSync(binaryPath, process.argv.slice(2), {
+    stdio: 'inherit',
+  });
 
-  // Ensure bin directory exists
-  if (!fs.existsSync(targetDir)) {
-    fs.mkdirSync(targetDir, { recursive: true });
+  if (signal) {
+    process.exit(1);
   }
 
-  // Copy binary
-  fs.copyFileSync(sourcePath, targetPath);
-
-  // Make executable
-  if (process.platform !== 'win32') {
-    fs.chmodSync(targetPath, 0o755);
-  }
-
-  console.log('✅ Neex installed');
+  process.exit(status !== null ? status : 1);
 }
 
-// Run
-try {
-  copyBinary();
-} catch (err) {
-  console.error('Install failed:', err.message);
-  process.exit(1);
-}
+run();
