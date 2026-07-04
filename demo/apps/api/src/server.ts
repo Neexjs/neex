@@ -58,9 +58,14 @@ app.get('/api/health', (_req: Request, res: Response<ApiResponse>) => {
 // Error handling middleware
 app.use((err: Error, _req: Request, res: Response<ApiResponse>, _next: NextFunction) => {
   console.error(err.stack);
+
+  const errorMessage = process.env.NODE_ENV === 'production'
+    ? 'Internal Server Error'
+    : (err.message || 'Something went wrong!');
+
   res.status(500).json({
     success: false,
-    error: err.message || 'Something went wrong!',
+    error: errorMessage,
     status: 500
   });
 });
