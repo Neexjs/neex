@@ -99,7 +99,8 @@ impl SymbolGraph {
 
     /// Extract symbols from all JS/TS files
     fn extract_all_symbols(&mut self, root: &Path) -> Result<()> {
-        for pkg_path in self.packages.clone().values() {
+        let pkg_paths: Vec<_> = self.packages.values().cloned().collect();
+        for pkg_path in &pkg_paths {
             self.extract_package_symbols(pkg_path)?;
         }
 
@@ -163,7 +164,8 @@ impl SymbolGraph {
     /// Build consumer map from imports
     fn build_consumers(&mut self, root: &Path) -> Result<()> {
         // Scan all files again for imports
-        for pkg_path in self.packages.clone().values() {
+        let pkg_paths: Vec<_> = self.packages.values().cloned().collect();
+        for pkg_path in &pkg_paths {
             self.scan_imports(pkg_path, root)?;
         }
 
