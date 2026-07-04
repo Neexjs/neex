@@ -76,7 +76,19 @@ pub fn save_config(config: &CloudConfig) -> Result<()> {
     }
 
     let content = serde_json::to_string_pretty(config)?;
-    std::fs::write(&path, content)?;
+
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create(true).truncate(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+
+    let mut file = options.open(&path)?;
+    use std::io::Write;
+    file.write_all(content.as_bytes())?;
 
     tracing::info!("Config saved to {:?}", path);
     Ok(())
