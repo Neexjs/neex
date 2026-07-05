@@ -43,14 +43,14 @@ pub type TaskAction = Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>
 pub struct SchedulerTask {
     pub name: String,
     pub dependencies: Vec<String>,
-    pub action: TaskAction,
+    pub action: std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'static>>,
 }
 
 impl SchedulerTask {
     pub fn new<F, Fut>(name: impl Into<String>, deps: Vec<String>, action: F) -> Self
     where
         F: FnOnce() -> Fut + Send + 'static,
-        Fut: Future<Output = Result<()>> + Send + 'static,
+        Fut: std::future::Future<Output = Result<()>> + Send + 'static,
     {
         Self {
             name: name.into(),
@@ -254,14 +254,13 @@ fn spawn_task(
         let start = Instant::now();
 
         // Execute task
-        let result = tokio::spawn(task.action).await;
+        let result = task.action.await;
 
         let duration = start.elapsed();
 
         let (status, error) = match result {
-            Ok(Ok(())) => (TaskStatus::Completed, None),
-            Ok(Err(e)) => (TaskStatus::Failed, Some(e.to_string())),
-            Err(e) => (TaskStatus::Failed, Some(format!("Task panicked: {}", e))),
+            Ok(()) => (TaskStatus::Completed, None),
+            Err(e) => (TaskStatus::Failed, Some(e.to_string())),
         };
 
         // Mark as completed
