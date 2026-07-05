@@ -38,18 +38,19 @@ pub struct TaskResult {
 pub struct SchedulerTask {
     pub name: String,
     pub dependencies: Vec<String>,
-    pub action: Box<dyn FnOnce() -> Result<()> + Send + 'static>,
+    pub action: std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + Send + 'static>>,
 }
 
 impl SchedulerTask {
-    pub fn new<F>(name: impl Into<String>, deps: Vec<String>, action: F) -> Self
+    pub fn new<F, Fut>(name: impl Into<String>, deps: Vec<String>, action: F) -> Self
     where
-        F: FnOnce() -> Result<()> + Send + 'static,
+        F: FnOnce() -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = Result<()>> + Send + 'static,
     {
         Self {
             name: name.into(),
             dependencies: deps,
-            action: Box::new(action),
+            action: Box::pin(action()),
         }
     }
 }
@@ -248,14 +249,13 @@ fn spawn_task(
         let start = Instant::now();
 
         // Execute task
-        let result = tokio::task::spawn_blocking(move || (task.action)()).await;
+        let result = task.action.await;
 
         let duration = start.elapsed();
 
         let (status, error) = match result {
-            Ok(Ok(())) => (TaskStatus::Completed, None),
-            Ok(Err(e)) => (TaskStatus::Failed, Some(e.to_string())),
-            Err(e) => (TaskStatus::Failed, Some(format!("Task panicked: {}", e))),
+            Ok(()) => (TaskStatus::Completed, None),
+            Err(e) => (TaskStatus::Failed, Some(e.to_string())),
         };
 
         // Mark as completed
@@ -296,19 +296,19 @@ mod tests {
         let order_clone3 = Arc::clone(&execution_order);
 
         let tasks = vec![
-            SchedulerTask::new("A", vec![], move || {
-                std::thread::sleep(Duration::from_millis(100));
-                order_clone1.blocking_lock().push("A");
+            SchedulerTask::new("A", vec![], move || async move {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                order_clone1.lock().await.push("A");
                 Ok(())
             }),
-            SchedulerTask::new("B", vec!["A".into()], move || {
-                std::thread::sleep(Duration::from_millis(100));
-                order_clone2.blocking_lock().push("B");
+            SchedulerTask::new("B", vec!["A".into()], move || async move {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                order_clone2.lock().await.push("B");
                 Ok(())
             }),
-            SchedulerTask::new("C", vec!["A".into()], move || {
-                std::thread::sleep(Duration::from_millis(100));
-                order_clone3.blocking_lock().push("C");
+            SchedulerTask::new("C", vec!["A".into()], move || async move {
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                order_clone3.lock().await.push("C");
                 Ok(())
             }),
         ];
@@ -343,15 +343,15 @@ mod tests {
         let counter_clone3 = Arc::clone(&counter);
 
         let tasks = vec![
-            SchedulerTask::new("A", vec![], move || {
+            SchedulerTask::new("A", vec![], move || async move {
                 counter_clone1.fetch_add(1, Ordering::SeqCst);
                 Err(anyhow!("Task A failed!"))
             }),
-            SchedulerTask::new("B", vec!["A".into()], move || {
+            SchedulerTask::new("B", vec!["A".into()], move || async move {
                 counter_clone2.fetch_add(1, Ordering::SeqCst);
                 Ok(())
             }),
-            SchedulerTask::new("C", vec!["A".into()], move || {
+            SchedulerTask::new("C", vec!["A".into()], move || async move {
                 counter_clone3.fetch_add(1, Ordering::SeqCst);
                 Ok(())
             }),
@@ -379,14 +379,14 @@ mod tests {
                 let max = Arc::clone(&max_concurrent);
                 let current = Arc::clone(&current_concurrent);
 
-                SchedulerTask::new(format!("Task{}", i), vec![], move || {
+                SchedulerTask::new(format!("Task{}", i), vec![], move || async move {
                     let prev = current.fetch_add(1, Ordering::SeqCst);
                     let now = prev + 1;
 
                     // Update max if current is higher
                     max.fetch_max(now, Ordering::SeqCst);
 
-                    std::thread::sleep(Duration::from_millis(50));
+                    tokio::time::sleep(Duration::from_millis(50)).await;
                     current.fetch_sub(1, Ordering::SeqCst);
                     Ok(())
                 })
