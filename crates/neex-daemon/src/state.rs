@@ -48,7 +48,7 @@ impl DaemonState {
     /// Load cached hashes from sled DB
     pub fn load_from_db(&self) -> Result<usize> {
         let mut count = 0;
-        let mut hashes = self.hashes.write().unwrap();
+        let mut hashes = self.hashes.write().expect("hashes lock poisoned");
 
         for item in self.db.iter() {
             let (key, value) = item?;
@@ -68,7 +68,7 @@ impl DaemonState {
         let files = self.hasher.hash_all()?;
 
         {
-            let mut hashes = self.hashes.write().unwrap();
+            let mut hashes = self.hashes.write().expect("hashes lock poisoned");
             hashes.clear();
 
             // Batch write to DB
@@ -94,7 +94,7 @@ impl DaemonState {
         let hash = self.hasher.hash_file(path)?;
 
         {
-            let mut hashes = self.hashes.write().unwrap();
+            let mut hashes = self.hashes.write().expect("hashes lock poisoned");
             hashes.insert(path.to_path_buf(), hash.clone());
         }
 
@@ -109,7 +109,7 @@ impl DaemonState {
     /// Remove file from cache
     pub fn remove_file(&self, path: &Path) -> Result<()> {
         {
-            let mut hashes = self.hashes.write().unwrap();
+            let mut hashes = self.hashes.write().expect("hashes lock poisoned");
             hashes.remove(path);
         }
 
@@ -120,7 +120,11 @@ impl DaemonState {
 
     /// Get hash for a file (from RAM cache)
     pub fn get_hash(&self, path: &Path) -> Option<String> {
-        self.hashes.read().unwrap().get(path).cloned()
+        self.hashes
+            .read()
+            .expect("hashes lock poisoned")
+            .get(path)
+            .cloned()
     }
 
     /// Get global hash (all files combined)
@@ -130,7 +134,7 @@ impl DaemonState {
 
     /// Get changed files since provided hashes
     pub fn get_changed(&self, old_hashes: &HashMap<PathBuf, String>) -> Vec<PathBuf> {
-        let current = self.hashes.read().unwrap();
+        let current = self.hashes.read().expect("hashes lock poisoned");
 
         current
             .iter()
@@ -141,7 +145,7 @@ impl DaemonState {
 
     /// Get stats
     pub fn stats(&self) -> DaemonStats {
-        let hashes = self.hashes.read().unwrap();
+        let hashes = self.hashes.read().expect("hashes lock poisoned");
         DaemonStats {
             cached_files: hashes.len(),
             db_size: self.db.size_on_disk().unwrap_or(0),
