@@ -473,7 +473,7 @@ async fn run_all(
                     vec![]
                 };
 
-                SchedulerTask::new(name.clone(), deps, move || {
+                SchedulerTask::new(name.clone(), deps, move || async move {
                     let task_start = Instant::now();
 
                     // Update TUI: Task started
@@ -487,7 +487,7 @@ async fn run_all(
                     let pkg_path = full_path.join("package.json");
 
                     let result = if pkg_path.exists() {
-                        let content = std::fs::read_to_string(&pkg_path)?;
+                        let content = tokio::fs::read_to_string(&pkg_path).await?;
                         let pkg: serde_json::Value = serde_json::from_str(&content)?;
 
                         if let Some(cmd) = pkg
@@ -501,11 +501,12 @@ async fn run_all(
                                 state.add_log(&name, &format!("$ {}", cmd));
                             }
 
-                            let output = std::process::Command::new("sh")
+                            let output = tokio::process::Command::new("sh")
                                 .arg("-c")
                                 .arg(cmd)
                                 .current_dir(&full_path)
-                                .output();
+                                .output()
+                                .await;
 
                             match output {
                                 Ok(out) => {
@@ -694,10 +695,10 @@ fn create_tasks(
             let r = Arc::clone(&root);
             let t = Arc::clone(&task_arc);
 
-            SchedulerTask::new(name.clone(), d, move || {
+            SchedulerTask::new(name.clone(), d, move || async move {
                 let full = r.join(&path);
                 let pkg_path = full.join("package.json");
-                let content = std::fs::read_to_string(&pkg_path)?;
+                let content = tokio::fs::read_to_string(&pkg_path).await?;
                 let pkg: serde_json::Value = serde_json::from_str(&content)?;
 
                 if let Some(cmd) = pkg
@@ -706,11 +707,12 @@ fn create_tasks(
                     .and_then(|c| c.as_str())
                 {
                     print!("  {} ", name);
-                    let out = std::process::Command::new("sh")
+                    let out = tokio::process::Command::new("sh")
                         .arg("-c")
                         .arg(cmd)
                         .current_dir(&full)
-                        .output()?;
+                        .output()
+                        .await?;
 
                     if out.status.success() {
                         println!("✓");
