@@ -402,7 +402,7 @@ async fn run_all(
         // === Raw Mode: Simple line output ===
         println!("▶ {} --all ({} packages)", task, graph.package_count());
 
-        let tasks = create_tasks(cwd, &order, task, &graph);
+        let tasks = create_tasks(cwd, &order, task, &graph).await;
         let results = Scheduler::new(c).execute(tasks).await?;
 
         let ok = results
@@ -440,130 +440,120 @@ async fn run_all(
         });
 
         // Create tasks with TUI updates
-        let tui_tasks: Vec<SchedulerTask> = order
-            .iter()
-            .map(|node| {
-                let name = node.name.clone();
-                let path = node.path.clone();
-                let root = cwd.clone();
-                let task_str = task.to_string();
-                let tui_state_ref = Arc::clone(&tui_state);
+        let mut tui_tasks: Vec<SchedulerTask> = Vec::new();
+        for node in order.iter() {
+            let name = node.name.clone();
+            let path = node.path.clone();
+            let root = cwd.clone();
+            let task_str = task.to_string();
+            let tui_state_ref = Arc::clone(&tui_state);
 
-                // Get dependencies
-                let pkg_path = root.join(&path).join("package.json");
-                let deps = if pkg_path.exists() {
-                    if let Ok(content) = std::fs::read_to_string(&pkg_path) {
-                        if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
-                            pkg.get("dependencies")
-                                .and_then(|d| d.as_object())
-                                .map(|d| {
-                                    d.keys()
-                                        .filter(|k| order.iter().any(|n| &n.name == *k))
-                                        .cloned()
-                                        .collect::<Vec<_>>()
-                                })
-                                .unwrap_or_default()
-                        } else {
-                            vec![]
-                        }
-                    } else {
-                        vec![]
-                    }
+            // Get dependencies
+            let pkg_path = root.join(&path).join("package.json");
+            let deps = if let Ok(content) = tokio::fs::read_to_string(&pkg_path).await {
+                if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
+                    pkg.get("dependencies")
+                        .and_then(|d| d.as_object())
+                        .map(|d| {
+                            d.keys()
+                                .filter(|k| order.iter().any(|n| &n.name == *k))
+                                .cloned()
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default()
                 } else {
                     vec![]
-                };
+                }
+            } else {
+                vec![]
+            };
 
-                SchedulerTask::new(name.clone(), deps, move || async move {
-                    let task_start = Instant::now();
+            tui_tasks.push(SchedulerTask::new(name.clone(), deps, move || async move {
+                let task_start = Instant::now();
 
-                    // Update TUI: Task started
+                // Update TUI: Task started
+                {
+                    let mut state = tui_state_ref.lock().unwrap();
+                    state.update_task(&name, TuiTaskStatus::Running);
+                    state.add_log(&name, &format!("▶ Starting {}...", name));
+                }
+
+                let full_path = root.join(&path);
+                let pkg_path = full_path.join("package.json");
+
+                let result = if let Ok(content) = tokio::fs::read_to_string(&pkg_path).await {
+                    let pkg: serde_json::Value = serde_json::from_str(&content)?;
+
+                    if let Some(cmd) = pkg
+                        .get("scripts")
+                        .and_then(|s| s.get(&task_str))
+                        .and_then(|c| c.as_str())
                     {
-                        let mut state = tui_state_ref.lock().unwrap();
-                        state.update_task(&name, TuiTaskStatus::Running);
-                        state.add_log(&name, &format!("▶ Starting {}...", name));
-                    }
-
-                    let full_path = root.join(&path);
-                    let pkg_path = full_path.join("package.json");
-
-                    let result = if pkg_path.exists() {
-                        let content = tokio::fs::read_to_string(&pkg_path).await?;
-                        let pkg: serde_json::Value = serde_json::from_str(&content)?;
-
-                        if let Some(cmd) = pkg
-                            .get("scripts")
-                            .and_then(|s| s.get(&task_str))
-                            .and_then(|c| c.as_str())
+                        // Add log
                         {
-                            // Add log
-                            {
-                                let mut state = tui_state_ref.lock().unwrap();
-                                state.add_log(&name, &format!("$ {}", cmd));
-                            }
-
-                            let output = tokio::process::Command::new("sh")
-                                .arg("-c")
-                                .arg(cmd)
-                                .current_dir(&full_path)
-                                .output()
-                                .await;
-
-                            match output {
-                                Ok(out) => {
-                                    let stdout = String::from_utf8_lossy(&out.stdout);
-                                    let stderr = String::from_utf8_lossy(&out.stderr);
-
-                                    // Add output logs
-                                    {
-                                        let mut state = tui_state_ref.lock().unwrap();
-                                        for line in stdout.lines().take(20) {
-                                            state.add_log(&name, line);
-                                        }
-                                        for line in stderr.lines().take(10) {
-                                            state.add_log(&name, &format!("⚠ {}", line));
-                                        }
-                                    }
-
-                                    out.status.success()
-                                }
-                                Err(e) => {
-                                    let mut state = tui_state_ref.lock().unwrap();
-                                    state.add_log(&name, &format!("Error: {}", e));
-                                    false
-                                }
-                            }
-                        } else {
-                            // No script found
                             let mut state = tui_state_ref.lock().unwrap();
-                            state.add_log(&name, "⚡ Skipped (no script)");
-                            true
+                            state.add_log(&name, &format!("$ {}", cmd));
+                        }
+
+                        let output = tokio::process::Command::new("sh")
+                            .arg("-c")
+                            .arg(cmd)
+                            .current_dir(&full_path)
+                            .output()
+                            .await;
+
+                        match output {
+                            Ok(out) => {
+                                let stdout = String::from_utf8_lossy(&out.stdout);
+                                let stderr = String::from_utf8_lossy(&out.stderr);
+
+                                // Add output logs
+                                {
+                                    let mut state = tui_state_ref.lock().unwrap();
+                                    for line in stdout.lines().take(20) {
+                                        state.add_log(&name, line);
+                                    }
+                                    for line in stderr.lines().take(10) {
+                                        state.add_log(&name, &format!("⚠ {}", line));
+                                    }
+                                }
+
+                                out.status.success()
+                            }
+                            Err(e) => {
+                                let mut state = tui_state_ref.lock().unwrap();
+                                state.add_log(&name, &format!("Error: {}", e));
+                                false
+                            }
                         }
                     } else {
-                        true
-                    };
-
-                    let elapsed = task_start.elapsed().as_millis() as u64;
-
-                    // Update TUI: Task completed
-                    {
+                        // No script found
                         let mut state = tui_state_ref.lock().unwrap();
-                        if result {
-                            state.update_task(&name, TuiTaskStatus::Completed(elapsed));
-                            state.add_log(&name, &format!("✓ Done in {}ms", elapsed));
-                        } else {
-                            state.update_task(
-                                &name,
-                                TuiTaskStatus::Failed("Build failed".to_string()),
-                            );
-                            state.add_log(&name, "✗ Failed");
-                            return Err(anyhow::anyhow!("Task {} failed", name));
-                        }
+                        state.add_log(&name, "⚡ Skipped (no script)");
+                        true
                     }
+                } else {
+                    true
+                };
 
-                    Ok(())
-                })
-            })
-            .collect();
+                let elapsed = task_start.elapsed().as_millis() as u64;
+
+                // Update TUI: Task completed
+                {
+                    let mut state = tui_state_ref.lock().unwrap();
+                    if result {
+                        state.update_task(&name, TuiTaskStatus::Completed(elapsed));
+                        state.add_log(&name, &format!("✓ Done in {}ms", elapsed));
+                    } else {
+                        state.update_task(&name, TuiTaskStatus::Failed("Build failed".to_string()));
+                        state.add_log(&name, "✗ Failed");
+                        return Err(anyhow::anyhow!("Task {} failed", name));
+                    }
+                }
+
+                Ok(())
+            }));
+        }
 
         // Execute tasks in parallel using Scheduler
         let results = Scheduler::new(c).execute(tui_tasks).await?;
@@ -658,7 +648,7 @@ async fn run_init() -> Result<()> {
     }
 }
 
-fn create_tasks(
+async fn create_tasks(
     cwd: &Path,
     order: &[&neex_core::WorkspaceNode],
     task: &str,
@@ -668,7 +658,7 @@ fn create_tasks(
 
     for node in graph.packages() {
         let path = cwd.join(&node.path).join("package.json");
-        if let Ok(content) = std::fs::read_to_string(&path) {
+        if let Ok(content) = tokio::fs::read_to_string(&path).await {
             if let Ok(pkg) = serde_json::from_str::<serde_json::Value>(&content) {
                 let mut d = Vec::new();
                 if let Some(obj) = pkg.get("dependencies").and_then(|x| x.as_object()) {
