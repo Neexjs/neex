@@ -34,6 +34,11 @@ pub struct TaskResult {
     pub error: Option<String>,
 }
 
+use std::future::Future;
+use std::pin::Pin;
+
+pub type TaskAction = Pin<Box<dyn Future<Output = Result<()>> + Send + 'static>>;
+
 /// A schedulable task
 pub struct SchedulerTask {
     pub name: String,
