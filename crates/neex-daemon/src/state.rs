@@ -66,6 +66,7 @@ impl DaemonState {
     pub fn full_scan(&mut self) -> Result<usize> {
         let start = Instant::now();
         let files = self.hasher.hash_all()?;
+        let files_len = files.len();
 
         {
             let mut hashes = self.hashes.write().expect("hashes lock poisoned");
@@ -74,9 +75,9 @@ impl DaemonState {
             // Batch write to DB
             let mut batch = sled::Batch::default();
 
-            for file in &files {
-                hashes.insert(file.path.clone(), file.hash.clone());
+            for file in files {
                 batch.insert(file.path.to_string_lossy().as_bytes(), file.hash.as_bytes());
+                hashes.insert(file.path, file.hash);
             }
 
             self.db.apply_batch(batch)?;
@@ -85,8 +86,8 @@ impl DaemonState {
         self.last_scan = Some(start);
         let elapsed = start.elapsed();
 
-        info!("Full scan: {} files in {:?}", files.len(), elapsed);
-        Ok(files.len())
+        info!("Full scan: {} files in {:?}", files_len, elapsed);
+        Ok(files_len)
     }
 
     /// Update hash for a single file
