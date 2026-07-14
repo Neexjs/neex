@@ -62,7 +62,7 @@ impl PeerManager {
         // Advertise our service
         let hostname = gethostname::gethostname().to_string_lossy().to_string();
 
-        let service_name = format!("{}-{}", SERVICE_NAME_PREFIX, &self.local_id);
+        let service_name = format!("{}-{}", SERVICE_NAME_PREFIX, self.local_id);
         let service =
             ServiceInfo::new(SERVICE_TYPE, &service_name, &hostname, "", local_port, None)?;
 
