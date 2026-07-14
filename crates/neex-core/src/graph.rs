@@ -171,14 +171,12 @@ impl DepGraph {
     /// Build dependency edges between nodes
     fn build_edges(&mut self) -> Result<()> {
         // Collect all dependencies first (to avoid borrow issues)
-        let mut edges: Vec<(String, String)> = Vec::new();
+        let mut edges: Vec<(NodeIndex, NodeIndex)> = Vec::new();
 
         for idx in self.graph.node_indices() {
             let node = &self.graph[idx];
             let pkg_content = std::fs::read_to_string(&node.package_json_path)?;
             let pkg: PackageJson = serde_json::from_str(&pkg_content)?;
-
-            let source_name = node.name.clone();
 
             // Collect all dependency types
             let all_deps: Vec<String> = [
@@ -193,22 +191,17 @@ impl DepGraph {
 
             for dep_name in all_deps {
                 // Only add edge if dependency is in our workspace
-                if self.name_to_idx.contains_key(&dep_name) {
-                    edges.push((source_name.clone(), dep_name));
+                if let Some(&dep_idx) = self.name_to_idx.get(&dep_name) {
+                    edges.push((idx, dep_idx));
                 }
             }
         }
 
         // Add edges (dependent -> dependency, so dependency comes first in topo sort)
-        for (from_name, to_name) in edges {
-            if let (Some(&from_idx), Some(&to_idx)) = (
-                self.name_to_idx.get(&from_name),
-                self.name_to_idx.get(&to_name),
-            ) {
-                // Edge direction: dependent -> dependency
-                // This ensures dependencies come FIRST in topological order
-                self.graph.add_edge(from_idx, to_idx, ());
-            }
+        for (from_idx, to_idx) in edges {
+            // Edge direction: dependent -> dependency
+            // This ensures dependencies come FIRST in topological order
+            self.graph.add_edge(from_idx, to_idx, ());
         }
 
         Ok(())
