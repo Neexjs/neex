@@ -39,9 +39,9 @@ packages/native/zig-out/
 # ============================================
 # Cache & Temp Files
 # ============================================
-.neex/
-.neex-cache/
-.neex-temp/
+.neexp/
+.neexp-cache/
+.neexp-temp/
 .turbo/
 .cache/
 *.cache

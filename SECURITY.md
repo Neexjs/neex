@@ -16,4 +16,4 @@ security advisory on GitHub.
 
 We will respond within 48 hours and work with you to understand and address the issue.
 
-Thank you for helping keep Neex secure!
+Thank you for helping keep Neexp secure!

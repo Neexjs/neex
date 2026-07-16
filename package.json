@@ -1,5 +1,5 @@
 {
-  "name": "neex-monorepo",
+  "name": "neexp-monorepo",
   "private": true,
   "workspaces": [
     "npm/*",

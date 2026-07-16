@@ -1,6 +1,6 @@
-# Contributing to Neex
+# Contributing to Neexp
 
-Thank you for your interest in contributing to Neex! 🚀
+Thank you for your interest in contributing to Neexp! 🚀
 
 ## Getting Started
 
@@ -14,7 +14,7 @@ Thank you for your interest in contributing to Neex! 🚀
 ```bash
 # Clone the repository
 git clone https://github.com/Neexjs/neex.git
-cd neex
+cd neexp
 
 # Build
 cd crates
@@ -24,7 +24,7 @@ cargo build
 cargo test
 
 # Run the CLI
-cargo run -p neex-cli -- --help
+cargo run -p neexp-cli -- --help
 ```
 
 ## Development Workflow
@@ -41,7 +41,7 @@ cargo run -p neex-cli -- --help
 cargo test
 
 # Run specific test
-cargo test --package neex-core -- ast_hasher
+cargo test --package neexp-core -- ast_hasher
 
 # Run with output
 cargo test -- --nocapture
@@ -60,10 +60,10 @@ cargo test -- --nocapture
 
 ```
 crates/
-├── neex-core/      # Core: Hasher, TaskRunner, DepGraph, SymbolGraph
-├── neex-daemon/    # Background: Watcher, P2P, State
-├── neex-cli/       # CLI: Commands, TUI
-└── neex-napi/      # Node.js bindings (future)
+├── neexp-core/      # Core: Hasher, TaskRunner, DepGraph, SymbolGraph
+├── neexp-daemon/    # Background: Watcher, P2P, State
+├── neexp-cli/       # CLI: Commands, TUI
+└── neexp-napi/      # Node.js bindings (future)
 ```
 
 ## 🚀 Release Process (Maintainers)
@@ -73,7 +73,7 @@ crates/
 ```bash
 # Edit these files:
 # - crates/Cargo.toml → version = "X.Y.Z"
-# - npm/neex/package.json → version + optionalDependencies
+# - npm/neexp/package.json → version + optionalDependencies
 ```
 
 ### 2. Create Version PR

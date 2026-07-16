@@ -1379,7 +1379,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neex-cli"
+name = "neexp-cli"
 version = "0.8.20"
 dependencies = [
  "anyhow",
@@ -1388,8 +1388,8 @@ dependencies = [
  "crossterm",
  "dialoguer",
  "dirs",
- "neex-core",
- "neex-daemon",
+ "neexp-core",
+ "neexp-daemon",
  "ratatui",
  "serde",
  "serde_json",
@@ -1400,7 +1400,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neex-core"
+name = "neexp-core"
 version = "0.8.20"
 dependencies = [
  "anyhow",
@@ -1426,14 +1426,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "neex-daemon"
+name = "neexp-daemon"
 version = "0.8.20"
 dependencies = [
  "anyhow",
  "axum",
  "gethostname",
  "mdns-sd",
- "neex-core",
+ "neexp-core",
  "notify",
  "reqwest",
  "serde",
@@ -1447,7 +1447,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "neex-napi"
+name = "neexp-napi"
 version = "0.1.0"
 
 [[package]]

@@ -1,9 +1,9 @@
 [workspace]
 resolver = "2"
-members = [ "neex-cli",
-    "neex-core",
-    "neex-daemon",
-    "neex-napi",
+members = [ "neexp-cli",
+    "neexp-core",
+    "neexp-daemon",
+    "neexp-napi",
 ]
 
 [workspace.package]

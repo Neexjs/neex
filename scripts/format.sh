@@ -1,8 +1,8 @@
 #!/bin/bash
-# 🎨 Neex Code Formatter
+# 🎨 Neexp Code Formatter
 
 set -e
-echo "🎨 Formatting Neex codebase..."
+echo "🎨 Formatting Neexp codebase..."
 
 cd crates
 cargo fmt --all
