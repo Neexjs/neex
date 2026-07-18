@@ -44,7 +44,7 @@ sled = "0.34"
 
 # JS/TS Parser (AST Hashing) - tree-sitter is more stable
 tree-sitter = "0.22"
-tree-sitter-javascript = "0.21"
+tree-sitter-javascript = "0.25"
 tree-sitter-typescript = "0.21"
 
 # Serialization
