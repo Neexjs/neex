@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import chalk from 'chalk';
+import logger from './logger';
 
 // Initialize environment variables
 dotenv.config();
@@ -37,7 +38,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   const start = Date.now();
   res.on('finish', () => {
     const duration = Date.now() - start;
-    console.log(`${req.method} ${req.url} - ${res.statusCode} - ${duration}ms`);
+    logger.info({
+      method: req.method,
+      url: req.url,
+      statusCode: res.statusCode,
+      durationMs: duration
+    }, 'Request completed');
   });
   next();
 });
@@ -57,7 +63,7 @@ app.get('/api/health', (_req: Request, res: Response<ApiResponse>) => {
 
 // Error handling middleware
 app.use((err: Error, _req: Request, res: Response<ApiResponse>, _next: NextFunction) => {
-  console.error(err.stack);
+  logger.error(err, 'Internal Server Error');
 
   const errorMessage = process.env.NODE_ENV === 'production'
     ? 'Internal Server Error'
@@ -72,6 +78,7 @@ app.use((err: Error, _req: Request, res: Response<ApiResponse>, _next: NextFunct
 
 // Start server
 const server = app.listen(PORT, () => {
+  logger.info(`Express server started on port ${PORT}`);
   console.log('\n');
   console.log(chalk.blue(`   * Express (5.1.0)`));
   console.log(`   - Local:        http://localhost:${PORT}`);
