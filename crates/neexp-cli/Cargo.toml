@@ -1,0 +1,29 @@
+[package]
+name = "neexp-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "neexp"
+path = "src/main.rs"
+
+[dependencies]
+neexp-core = { path = "../neexp-core" }
+neexp-daemon = { path = "../neexp-daemon" }
+clap = { version = "4.4", features = ["derive"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+dialoguer = { workspace = true }
+dirs = { workspace = true }
+
+# TUI
+ratatui = "0.29"
+crossterm = "0.28"
+sysinfo = "0.32"
+atty = "0.2"

@@ -1,9 +1,9 @@
 <div align="center">
  <a href="https://github.com/Neexjs">
-<picture>
-<source media="(prefers-color-scheme: dark)" srcset="https://i.ibb.co/6ct76YVN/neex.png">
-<img width="130" height="120" alt="Neexp" src="https://i.ibb.co/6ct76YVN/neex.png" style="border-radius: 50%;" />
-</picture>
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://neexp.storage.c2.liara.space/Neexp.png">
+      <img alt="Neexp logo" src="https://neexp.storage.c2.liara.space/Neexp.png" height="150" style="border-radius: 12px;">
+    </picture>
 </a>
 
 <h1>Neexp</h1>
@@ -30,14 +30,14 @@
 
 ## ⚡ Features
 
-| Feature                      | Description                                  |
-| ---------------------------- | -------------------------------------------- |
-| 🚀 **20x Faster**            | Rust-powered execution, faster than Turbo/Nx |
-| 🧠 **AST-Aware Hashing**     | Ignores comments and whitespace changes      |
-| 🔗 **Symbol-Level Tracking** | Only rebuilds files with changed exports     |
-| 💾 **Tiered Caching**        | Local → P2P (LAN) → Cloud (S3/R2)            |
-| 🎨 **Beautiful TUI**         | Real-time task dashboard with progress       |
-| 📦 **Zero Config**           | Works with any monorepo structure            |
+| Feature | Description |
+|---------|-------------|
+| 🚀 **20x Faster** | Rust-powered execution, faster than Turbo/Nx |
+| 🧠 **AST-Aware Hashing** | Ignores comments and whitespace changes |
+| 🔗 **Symbol-Level Tracking** | Only rebuilds files with changed exports |
+| 💾 **Tiered Caching** | Local → P2P (LAN) → Cloud (S3/R2) |
+| 🎨 **Beautiful TUI** | Real-time task dashboard with progress |
+| 📦 **Zero Config** | Works with any monorepo structure |
 
 ---
 
@@ -91,12 +91,12 @@ neexp --prune          # Clean cache
 
 ## 🏎️ Benchmarks
 
-| Scenario       | Turbo    | Nx       | **Neexp**          |
-| -------------- | -------- | -------- | ----------------- |
-| Cold build     | 10s      | 12s      | **8s**            |
-| Cache hit      | 50ms     | 80ms     | **12ms**          |
-| Comment change | rebuild  | rebuild  | **skip**          |
-| Symbol change  | all deps | all deps | **affected only** |
+| Scenario | Turbo | Nx | **Neexp** |
+|----------|-------|-----|----------|
+| Cold build | 10s | 12s | **8s** |
+| Cache hit | 50ms | 80ms | **12ms** |
+| Comment change | rebuild | rebuild | **skip** |
+| Symbol change | all deps | all deps | **affected only** |
 
 > Benchmarks on 100-package monorepo, M1 MacBook Pro
 

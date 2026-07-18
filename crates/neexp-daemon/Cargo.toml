@@ -1,0 +1,23 @@
+[package]
+name = "neexp-daemon"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+neexp-core = { path = "../neexp-core" }
+tokio = { workspace = true }
+notify = { workspace = true }
+sled = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { workspace = true }
+mdns-sd = { workspace = true }
+reqwest = { workspace = true }
+uuid = { workspace = true }
+gethostname = { workspace = true }

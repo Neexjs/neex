@@ -1,6 +1,6 @@
-# 🚀 Neex Demo Monorepo
+# 🚀 Neexp Demo Monorepo
 
-Official demo showcasing **Neex** - the ultra-fast monorepo build tool.
+Official demo showcasing **Neexp** - the ultra-fast monorepo build tool.
 
 ## 📦 Packages
 
@@ -20,38 +20,38 @@ Official demo showcasing **Neex** - the ultra-fast monorepo build tool.
 bun install
 
 # Start development
-neex dev
+neexp dev
 
 # Build all packages
-neex build --all
+neexp build --all
 ```
 
-## 🛠️ Neex Commands
+## 🛠️ Neexp Commands
 
 ```bash
 # Development
-neex dev                    # Start all dev servers
-neex dev --filter=@demo/web # Start specific package
+neexp dev                    # Start all dev servers
+neexp dev --filter=@demo/web # Start specific package
 
 # Building
-neex build --all            # Build all packages
-neex build --filter=@demo/api # Build specific package
-neex build --symbols        # Symbol-level rebuild
+neexp build --all            # Build all packages
+neexp build --filter=@demo/api # Build specific package
+neexp build --symbols        # Symbol-level rebuild
 
 # Utilities
-neex --list                 # List all packages
-neex --graph                # Show dependency graph
-neex --info                 # Project information
-neex --prune                # Clean cache
+neexp --list                 # List all packages
+neexp --graph                # Show dependency graph
+neexp --info                 # Project information
+neexp --prune                # Clean cache
 
 # Cloud Cache
-neex --login                # Setup cloud cache (S3/R2)
+neexp --login                # Setup cloud cache (S3/R2)
 ```
 
 ## 🏗️ Project Structure
 
 ```
-neex-demo/
+neexp-demo/
 ├── apps/
 │   ├── client/     → @demo/web (Next.js 16)
 │   └── server/     → @demo/api (Express 5)
@@ -71,4 +71,4 @@ L1: RAM (1ms) → L2: Disk (5ms) → L3: Cloud (S3/R2)
 
 ---
 
-**Built with [Neex](https://github.com/Neexjs/neex)** ⚡
+**Built with [Neexp](https://github.com/Neexjs/neex)** ⚡

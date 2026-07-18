@@ -14,7 +14,7 @@ body:
     attributes:
       label: What do you need help with?
       description: Describe your issue or question
-      placeholder: I'm trying to configure Neex for my monorepo but...
+      placeholder: I'm trying to configure Neexp for my monorepo but...
     validations:
       required: true
 

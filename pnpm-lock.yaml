@@ -186,7 +186,7 @@ importers:
         specifier: 5.9.2
         version: 5.9.2
 
-  npm/create-neex:
+  npm/create-neexp:
     dependencies:
       '@clack/prompts':
         specifier: ^0.9.1
@@ -223,20 +223,7 @@ importers:
         specifier: ^5.9.2
         version: 5.9.2
 
-  npm/neex:
-    optionalDependencies:
-      '@neexjs/darwin-arm64':
-        specifier: 0.8.20
-        version: 0.8.20
-      '@neexjs/darwin-x64':
-        specifier: 0.8.20
-        version: 0.8.20
-      '@neexjs/linux-x64':
-        specifier: 0.8.20
-        version: 0.8.20
-      '@neexjs/win32-x64':
-        specifier: 0.8.20
-        version: 0.8.20
+  npm/neexp: {}
 
 packages:
 
@@ -711,18 +698,6 @@ packages:
 
   '@manypkg/get-packages@1.1.3':
     resolution: {integrity: sha512-fo+QhuU3qE/2TQMQmbVMqaQ6EWbMhi4ABWP+O4AM1NqPBuy0OrApV5LO6BrrgnhtAHS2NH6RrVk9OL181tTi8A==}
-
-  '@neexjs/darwin-arm64@0.8.20':
-    resolution: {integrity: sha512-v0atbgd5hl2yxFcEDuK/h8qaCg0p67vKoum6m7Bxl59UuJLqXMFCsW6QzKA9UmhCLATUDnZctk9q+mzdBkdimQ==}
-
-  '@neexjs/darwin-x64@0.8.20':
-    resolution: {integrity: sha512-cmmiJvmKqYuZ5N40uFo64VMVJ5Z1U0VoHq0x49lOU1DonFF6n/PNHnGBInFpbQvdtOMWCjja2lDIjQ0mjJUl1A==}
-
-  '@neexjs/linux-x64@0.8.20':
-    resolution: {integrity: sha512-p1Sg2T/a0zP2padrcPvKfP4C2SBx8ARFNPPi61NFh+TQrOVAaCyY2Gyf+g1BtkM3fzIkMJoHKpMVisJPcOgnDA==}
-
-  '@neexjs/win32-x64@0.8.20':
-    resolution: {integrity: sha512-StvljiKNyS6VGxUp3mnu6vul/RnHymz/tN3nI7KNLM3Q/QyDhfcM9E0Zl/AmpnRcmoDq9SFL/LHAGKFRiIAXfg==}
 
   '@next/env@16.1.1':
     resolution: {integrity: sha512-3oxyM97Sr2PqiVyMyrZUtrtM3jqqFxOQJVuKclDsgj/L728iZt/GyslkN4NwarledZATCenbk4Offjk1hQmaAA==}
@@ -3452,18 +3427,6 @@ snapshots:
       fs-extra: 8.1.0
       globby: 11.1.0
       read-yaml-file: 1.1.0
-
-  '@neexjs/darwin-arm64@0.8.20':
-    optional: true
-
-  '@neexjs/darwin-x64@0.8.20':
-    optional: true
-
-  '@neexjs/linux-x64@0.8.20':
-    optional: true
-
-  '@neexjs/win32-x64@0.8.20':
-    optional: true
 
   '@next/env@16.1.1': {}
 
