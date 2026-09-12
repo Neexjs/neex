@@ -1,10 +1,14 @@
 # Neex Workspace
-# This is the root Cargo.toml that points to the actual workspace
+# The single Cargo workspace for all crates. Run cargo from the repo root.
 
 [workspace]
 resolver = "2"
-members = ["crates/*"]
-exclude = ["crates/target"]
+members = [
+    "crates/neex-cli",
+    "crates/neex-core",
+    "crates/neex-daemon",
+    "crates/neex-napi",
+]
 
 [workspace.package]
 version = "0.8.20"

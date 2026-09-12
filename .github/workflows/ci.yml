@@ -19,16 +19,12 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: crates
 
       - name: Build
-        run: cargo build --all
-        working-directory: crates
+        run: cargo build --workspace --locked
 
       - name: Test
-        run: cargo test --all
-        working-directory: crates
+        run: cargo test --workspace --locked
 
   lint:
     name: Lint
@@ -41,19 +37,33 @@ jobs:
           components: rustfmt, clippy
 
       - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: crates
 
-      - name: Format Check (Auto-fix available)
+      - name: Format Check
         run: |
-          cd crates
           if ! cargo fmt --all -- --check; then
             echo "❌ Code formatting issues found!"
             echo "💡 Run: cargo fmt --all"
-            echo "🤖 Or push to trigger auto-format"
             exit 1
           fi
 
       - name: Clippy
-        run: cargo clippy --all -- -D warnings
-        working-directory: crates
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  js:
+    name: JS packages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
