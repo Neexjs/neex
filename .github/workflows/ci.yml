@@ -58,6 +58,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v6
 
@@ -73,7 +75,11 @@ jobs:
         run: pnpm run build
 
       - name: Validate release tooling
-        run: pnpm exec changeset status --output /tmp/neex-release-plan.json
+        run: |
+          if ! git show-ref --verify --quiet refs/heads/main; then
+            git branch main origin/main
+          fi
+          pnpm exec changeset status --output /tmp/neex-release-plan.json
 
       - name: Typecheck scaffolder
         run: pnpm --filter create-neex typecheck
