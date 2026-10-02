@@ -2,7 +2,8 @@
 
 import * as p from "@clack/prompts";
 import pc from "picocolors";
-import { execSync, exec } from "child_process";
+import { exec } from "child_process";
+import spawn from "cross-spawn";
 import { promisify } from "util";
 import { Command } from "commander";
 import logUpdate from "log-update";
@@ -47,7 +48,7 @@ const progressState: ProgressState = {
   isComplete: false,
 };
 
-let progressInterval: NodeJS.Timeout;
+let progressInterval: NodeJS.Timeout | undefined;
 let projectName = "";
 
 // Progress display
@@ -85,11 +86,12 @@ function startProgressTracking(): void {
   }, 100);
 }
 
-function stopProgressTracking(): void {
-  if (progressInterval) {
-    clearInterval(progressInterval);
-  }
-  progressState.isComplete = true;
+function stopProgressTracking(success = false): void {
+  if (!progressInterval) return;
+  clearInterval(progressInterval);
+  progressInterval = undefined;
+  progressState.isComplete = success;
+  if (success) progressState.percentage = 100;
   updateProgressDisplay();
   logUpdate.done();
 }
@@ -137,6 +139,17 @@ function getInstallCommand(pm: PackageManager): string {
   }
 }
 
+function runCommand(command: string, args: string[], cwd: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, stdio: "ignore" });
+    child.once("error", reject);
+    child.once("close", (code, signal) => {
+      if (code === 0) resolve();
+      else reject(new Error(`${command} exited with ${signal ?? code}`));
+    });
+  });
+}
+
 // File operations
 function copyDir(src: string, dest: string, projectNameVal: string): void {
   fs.mkdirSync(dest, { recursive: true });
@@ -177,7 +190,7 @@ function updatePackageJson(projectPath: string, projectNameVal: string, pm: Pack
     pkg.name = projectNameVal;
 
     if (pm === "bun") pkg.packageManager = "bun@1.3.3";
-    else if (pm === "pnpm") pkg.packageManager = "pnpm@9.15.4";
+    else if (pm === "pnpm") pkg.packageManager = "pnpm@10.11.0";
 
     fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
   }
@@ -207,7 +220,7 @@ async function createProject(config: ProjectConfig): Promise<void> {
     if (gitInit) {
       progressState.currentStep = "Initializing git...";
       try {
-        execSync("git init", { cwd: projectPath, stdio: "ignore" });
+        await runCommand("git", ["init"], projectPath);
         updateStep("Git initialized", 10);
       } catch {
         addLog("Git initialization failed (git may not be installed)", false);
@@ -217,15 +230,13 @@ async function createProject(config: ProjectConfig): Promise<void> {
     // Step 4: Install dependencies
     progressState.currentStep = "Installing dependencies...";
     try {
-      const installCmd = getInstallCommand(packageManager);
-      execSync(installCmd, { cwd: projectPath, stdio: "ignore", timeout: 120000 });
+      await runCommand(packageManager, ["install"], projectPath);
       updateStep("Dependencies installed", 50);
-    } catch {
-      addLog("Dependency installation failed. Run install manually.", false);
-      progressState.percentage += 50;
+    } catch (error) {
+      throw new Error(`Dependency installation failed. Run ${getInstallCommand(packageManager)} in ${projectPath}. ${error instanceof Error ? error.message : String(error)}`);
     }
 
-    stopProgressTracking();
+    stopProgressTracking(true);
   } catch (error) {
     stopProgressTracking();
     throw error;
@@ -291,6 +302,10 @@ async function main(): Promise<void> {
     // Step 2: Select template
     let template = options.template as Template | undefined;
 
+    if (template && template !== "next-hono" && template !== "next-express") {
+      throw new Error(`Unknown template "${template}". Choose next-hono or next-express.`);
+    }
+
     if (!template) {
       const templateResult = await p.select({
         message: "Select a stack:",
@@ -355,7 +370,7 @@ async function main(): Promise<void> {
     console.log();
     console.log(pc.bold("🚀 Next steps:"));
     console.log(`   ${pc.cyan(`cd ${inputProjectName}`)}`);
-    console.log(`   ${pc.cyan("neex dev --all")}    ${pc.dim("# Start all apps")}`);
+    console.log(`   ${pc.cyan("pnpm dev")}    ${pc.dim("# Start all apps")}`);
     console.log();
 
     p.outro(pc.dim("Happy coding! 🚀"));

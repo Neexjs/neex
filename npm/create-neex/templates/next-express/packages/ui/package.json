@@ -9,8 +9,9 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "build": "echo 'UI package built'",
-    "lint": "echo 'Lint passed'"
+    "build": "tsc --noEmit",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
     "react": "^19.0.0",

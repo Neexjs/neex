@@ -13,9 +13,9 @@ export default function Home() {
 
         <div className="stack">
           <span className="badge">Next.js 15</span>
-          <span className="badge">Hono</span>
+          <span className="badge">Express</span>
           <span className="badge">TypeScript</span>
-          <span className="badge">Bun</span>
+          <span className="badge">Node.js</span>
         </div>
 
         <div className="actions">
@@ -28,7 +28,7 @@ export default function Home() {
         <div className="feature">
           <span className="icon">⚡</span>
           <h3>Fast Dev</h3>
-          <p>Run <code>neex dev --all</code> for instant HMR</p>
+          <p>Run <code>pnpm dev</code> for instant HMR</p>
         </div>
         <div className="feature">
           <span className="icon">📦</span>
@@ -38,7 +38,7 @@ export default function Home() {
         <div className="feature">
           <span className="icon">🔄</span>
           <h3>Full-Stack</h3>
-          <p>Next.js frontend + Hono API backend</p>
+          <p>Next.js frontend + Express API backend</p>
         </div>
       </section>
     </main>

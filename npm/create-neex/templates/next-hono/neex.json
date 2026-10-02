@@ -1,0 +1,36 @@
+{
+  "tasks": {
+    "build": {
+      "dependsOn": [
+        "^build"
+      ]
+    },
+    "@{{projectName}}/web#build": {
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "next-env.d.ts"
+      ]
+    },
+    "@{{projectName}}/api#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@{{projectName}}/utils#build": {
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "dev": {
+      "dependsOn": [
+        "^build"
+      ],
+      "persistent": true,
+      "cache": false
+    },
+    "@{{projectName}}/ui#build": {
+      "outputs": []
+    }
+  }
+}

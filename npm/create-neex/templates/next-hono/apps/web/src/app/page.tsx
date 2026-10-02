@@ -28,7 +28,7 @@ export default function Home() {
         <div className="feature">
           <span className="icon">⚡</span>
           <h3>Fast Dev</h3>
-          <p>Run <code>neex dev --all</code> for instant HMR</p>
+          <p>Run <code>pnpm dev</code> for instant HMR</p>
         </div>
         <div className="feature">
           <span className="icon">📦</span>

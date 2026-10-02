@@ -6,11 +6,11 @@
 
 ```bash
 # Development
-neex dev --all
+pnpm dev
 
 # Or run separately
-neex dev --filter=web   # Frontend
-neex dev --filter=api   # Backend
+pnpm exec neex dev --filter=@{{projectName}}/web   # Frontend
+pnpm exec neex dev --filter=@{{projectName}}/api   # Backend
 ```
 
 ## 📁 Structure
@@ -29,10 +29,10 @@ neex dev --filter=api   # Backend
 
 | Command | Description |
 |---------|-------------|
-| `neex dev --all` | Start all apps in dev mode |
-| `neex build --all` | Build all packages |
-| `neex --graph` | Show dependency graph |
-| `neex --list` | List all packages |
+| `pnpm dev` | Start all apps in dev mode |
+| `pnpm build` | Build all packages |
+| `neex graph` | Show dependency graph |
+| `neex ls` | List all packages |
 
 ## 📦 Tech Stack
 
