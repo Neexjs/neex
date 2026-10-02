@@ -1,0 +1,28 @@
+[package]
+name = "neex-daemon"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# LAN sharing is a prototype and is not part of the published CLI behavior.
+experimental-p2p = ["dep:axum", "dep:mdns-sd", "dep:reqwest", "dep:uuid", "dep:gethostname"]
+
+[dependencies]
+neex-core = { path = "../neex-core" }
+tokio = { workspace = true }
+notify = { workspace = true }
+sled = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+axum = { workspace = true, optional = true }
+mdns-sd = { workspace = true, optional = true }
+reqwest = { workspace = true, optional = true }
+uuid = { workspace = true, optional = true }
+gethostname = { workspace = true, optional = true }

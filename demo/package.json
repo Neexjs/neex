@@ -1,6 +1,6 @@
 {
-  "name": "neexp-demo",
-  "description": "Official Neexp demo monorepo - showcasing ultra-fast builds and tiered caching",
+  "name": "neex-demo",
+  "description": "Official Neex demo monorepo - showcasing ultra-fast builds and tiered caching",
   "version": "1.0.0",
   "private": true,
   "packageManager": "bun@1.3.3",
@@ -12,15 +12,15 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "neexp dev --all",
-    "build": "neexp build --all",
-    "lint": "neexp lint --all",
-    "test": "neexp test --all",
+    "dev": "neex dev --all",
+    "build": "neex build --all",
+    "lint": "neex lint --all",
+    "test": "neex test --all",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
-    "graph": "neexp --graph",
-    "list": "neexp --list",
-    "info": "neexp --info",
-    "prune": "neexp --prune"
+    "graph": "neex --graph",
+    "list": "neex --list",
+    "info": "neex --info",
+    "prune": "neex --prune"
   },
   "devDependencies": {
     "prettier": "^3.6.2",

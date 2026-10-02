@@ -39,9 +39,9 @@ packages/native/zig-out/
 # ============================================
 # Cache & Temp Files
 # ============================================
-.neexp/
-.neexp-cache/
-.neexp-temp/
+.neex/
+.neex-cache/
+.neex-temp/
 .turbo/
 .cache/
 *.cache
@@ -111,9 +111,11 @@ test-project/
 temp-*/
 tmp/
 
-# Rust
+# Rust (Cargo.lock is committed: neex ships a binary)
 target/
 crates/target/
-Cargo.lock
-crates/Cargo.lock
 help/
+
+# Binary copied into place by npm/neex/install.js (postinstall)
+npm/neex/bin/neex
+npm/neex/bin/neex.exe

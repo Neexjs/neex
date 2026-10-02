@@ -2,7 +2,7 @@
   "release-type": "rust",
   "packages": {
     ".": {
-      "package-name": "neexp",
+      "package-name": "neex",
       "changelog-path": "CHANGELOG.md",
       "release-type": "rust",
       "bump-minor-pre-major": true,

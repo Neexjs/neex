@@ -1,5 +1,5 @@
 name: ✨ Feature Request
-description: Suggest a new feature for Neexp
+description: Suggest a new feature for Neex
 title: "[Feature]: "
 labels: ["enhancement"]
 
@@ -23,7 +23,7 @@ body:
     attributes:
       label: Proposed Solution
       description: How would you like it to work?
-      placeholder: It would be great if Neexp could...
+      placeholder: It would be great if Neex could...
     validations:
       required: true
 

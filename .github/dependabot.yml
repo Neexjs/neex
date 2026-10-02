@@ -2,7 +2,7 @@ version: 2
 updates:
   # Rust dependencies
   - package-ecosystem: "cargo"
-    directory: "/crates"
+    directory: "/"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -17,7 +17,7 @@ updates:
 
   # NPM dependencies  
   - package-ecosystem: "npm"
-    directory: "/npm/neexp"
+    directory: "/npm/neex"
     schedule:
       interval: "weekly"
       day: "monday" 

@@ -1,0 +1,90 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/Neexjs/neex/main/schema.json",
+  "title": "neex.json",
+  "description": "Configuration for neex, the polyglot monorepo task runner. At the workspace root it configures tasks for every project; inside a project directory it declares that project's tasks and dependencies.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "projects": {
+      "description": "Root only. Extra project globs added to what the language providers discover (e.g. directories that only have a neex.json). `!` excludes.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "globalEnv": {
+      "description": "Root only. Env var names whose values are part of every task's cache key. A trailing `*` matches a prefix.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "globalInputs": {
+      "description": "Root only. Root-relative globs whose contents are part of every task's cache key.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "name": {
+      "description": "Project file only. Overrides the project's name.",
+      "type": "string"
+    },
+    "deps": {
+      "description": "Project file only. Other projects this one depends on, by name, ecosystem id, or path. This is how a cross-language dependency is declared.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tasks": {
+      "description": "Keys: `build` (every project), `web#build` (one project), `//#format` (a root task). In a project file, a value may be just a command string.",
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string", "description": "Shell command (project files, `project#task` and `//#task` only)" },
+          { "$ref": "#/definitions/task" }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "task": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dependsOn": {
+          "description": "`^build` = build in upstream projects first, `codegen` = a task in the same project, `proto#generate` = a specific project's task.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "inputs": {
+          "description": "Project-relative globs that make up the task's file inputs. Default: every non-ignored file in the project. Positive globs restrict, `!` excludes, `//path` adds a root-relative file.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "outputs": {
+          "description": "Project-relative globs stored after a successful run and restored on a cache hit. `!` excludes.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "env": {
+          "description": "Env var names whose values are part of the cache key. A trailing `*` matches a prefix.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "passThroughEnv": {
+          "description": "Env vars available to the task but NOT part of the cache key. Changing them never invalidates the cache, so use sparingly.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "cache": {
+          "description": "Cache this task's results. Default: true for tasks mentioned in neex.json and for build/test/lint/check/typecheck; false otherwise.",
+          "type": "boolean"
+        },
+        "persistent": {
+          "description": "A long-running task such as a dev server. Never cached; nothing may depend on it.",
+          "type": "boolean"
+        },
+        "command": {
+          "description": "Shell command for this task. Only valid for `project#task`, `//#task`, and in project files.",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

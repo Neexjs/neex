@@ -1,11 +1,10 @@
 #!/bin/bash
-# 🎨 Neexp Code Formatter
+# 🎨 Neex Code Formatter
 
 set -e
-echo "🎨 Formatting Neexp codebase..."
+echo "🎨 Formatting Neex codebase..."
 
-cd crates
+cd "$(dirname "$0")/.."
 cargo fmt --all
-cd ..
 
 echo "✅ Formatting complete!"

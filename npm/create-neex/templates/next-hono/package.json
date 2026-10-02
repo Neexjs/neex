@@ -1,0 +1,30 @@
+{
+  "name": "{{projectName}}",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=18.18"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "neex dev --all",
+    "build": "neex build --all",
+    "lint": "neex lint --all",
+    "test": "neex test --all",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "graph": "neex graph",
+    "list": "neex ls",
+    "info": "neex info",
+    "typecheck": "neex typecheck --all"
+  },
+  "devDependencies": {
+    "neex": "^0.8.20",
+    "prettier": "^3.5.3",
+    "typescript": "^5.9.2",
+    "eslint": "^9.39.2",
+    "typescript-eslint": "^8.51.0"
+  }
+}
