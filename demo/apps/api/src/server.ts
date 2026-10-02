@@ -40,7 +40,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     const duration = Date.now() - start;
     logger.info({
       method: req.method,
-      url: req.url,
+      url: req.path,
       statusCode: res.statusCode,
       durationMs: duration
     }, 'Request completed');

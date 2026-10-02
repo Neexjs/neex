@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "neexp-demo",
+      "name": "neex-demo",
       "dependencies": {
         "@tailwindcss/postcss": "^4.1.17",
         "postcss": "^8.5.6",
