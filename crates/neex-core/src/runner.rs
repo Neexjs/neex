@@ -52,8 +52,11 @@ pub async fn execute(
         // Block before running user commands until the shell belongs to a
         // kill-on-close job. Descendants can never escape the assignment race.
         cmd.arg("/D")
+            .arg("/S")
             .arg("/C")
-            .arg(format!("set /p \"__NEEX_GATE=\" >nul & {}", command));
+            // cmd.exe uses its own quoting grammar, not the CRT argv rules.
+            // /S strips this outer pair while preserving quoted executable paths.
+            .raw_arg(format!("\"set /p \"__NEEX_GATE=\" >nul & {}\"", command));
         cmd
     };
     cmd.current_dir(cwd)
@@ -266,8 +269,8 @@ mod tests {
         })
         .await;
         handle.abort();
-        let _ = handle.await;
-        assert!(ready.is_ok(), "descendant never started");
+        let stopped = handle.await;
+        assert!(ready.is_ok(), "descendant never started: {stopped:?}");
         // Allow an already-buffered write to settle, then verify the actual
         // grandchild stopped rather than merely losing its stdout connection.
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
