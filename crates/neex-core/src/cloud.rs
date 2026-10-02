@@ -73,6 +73,11 @@ pub fn save_config(config: &CloudConfig) -> Result<()> {
 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(parent, std::fs::Permissions::from_mode(0o700))?;
+        }
     }
 
     let content = serde_json::to_string_pretty(config)?;
@@ -87,6 +92,12 @@ pub fn save_config(config: &CloudConfig) -> Result<()> {
     }
 
     let mut file = options.open(&path)?;
+    // `mode` only applies on creation; tighten an existing file too
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
+    }
     use std::io::Write;
     file.write_all(content.as_bytes())?;
 

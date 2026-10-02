@@ -53,6 +53,13 @@ impl Hasher {
             .ignore(true) // Respect .gitignore
             .git_ignore(true)
             .git_global(true)
+            .require_git(false) // .gitignore applies outside git repos too
+            .filter_entry(|e| {
+                let is_dir = e.file_type().map(|t| t.is_dir()).unwrap_or(false);
+                !(is_dir
+                    && crate::providers::SKIP_DIRS
+                        .contains(&e.file_name().to_string_lossy().as_ref()))
+            })
             .build()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))

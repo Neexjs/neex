@@ -65,9 +65,13 @@ pub struct TuiState {
     pub cache_hits: usize,
     pub start_time: Instant,
     pub should_quit: bool,
-    pub p2p_peers: usize,
+    /// Set when the user quits before the run finished
+    pub cancel_requested: bool,
     pub cloud_enabled: bool,
 }
+
+/// Per-task log lines kept in memory for the TUI
+const MAX_LOG_LINES: usize = 2000;
 
 impl Default for TuiState {
     fn default() -> Self {
@@ -80,7 +84,7 @@ impl Default for TuiState {
             cache_hits: 0,
             start_time: Instant::now(),
             should_quit: false,
-            p2p_peers: 0,
+            cancel_requested: false,
             cloud_enabled: false,
         }
     }
@@ -118,6 +122,10 @@ impl TuiState {
     pub fn add_log(&mut self, name: &str, log: &str) {
         if let Some(task) = self.tasks.iter_mut().find(|t| t.name == name) {
             task.logs.push(log.to_string());
+            if task.logs.len() > MAX_LOG_LINES {
+                let excess = task.logs.len() - MAX_LOG_LINES;
+                task.logs.drain(..excess);
+            }
         }
     }
 
@@ -134,13 +142,46 @@ impl TuiState {
     }
 }
 
-/// Run TUI application
+/// Restores the terminal when dropped, including on early return or panic
+struct TerminalGuard;
+
+impl TerminalGuard {
+    fn enter() -> Result<Self> {
+        enable_raw_mode()?;
+        let guard = TerminalGuard;
+        execute!(io::stdout(), EnterAlternateScreen, EnableMouseCapture)?;
+        Ok(guard)
+    }
+}
+
+impl Drop for TerminalGuard {
+    fn drop(&mut self) {
+        restore_terminal();
+    }
+}
+
+fn restore_terminal() {
+    let _ = disable_raw_mode();
+    let _ = execute!(
+        io::stdout(),
+        LeaveAlternateScreen,
+        DisableMouseCapture,
+        crossterm::cursor::Show
+    );
+}
+
+/// Run TUI application. Returns when `should_quit` is set, or when the user
+/// presses q / Esc / Ctrl-C (which also sets `cancel_requested`).
 pub fn run_tui(state: Arc<Mutex<TuiState>>) -> Result<()> {
-    // Setup terminal
-    enable_raw_mode()?;
-    let mut stdout = io::stdout();
-    execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stdout);
+    // A panic anywhere must not leave the user's terminal in raw mode
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        restore_terminal();
+        previous(info);
+    }));
+
+    let _guard = TerminalGuard::enter()?;
+    let backend = CrosstermBackend::new(io::stdout());
     let mut terminal = Terminal::new(backend)?;
 
     // System info
@@ -155,9 +196,9 @@ pub fn run_tui(state: Arc<Mutex<TuiState>>) -> Result<()> {
         let cpu = sys.global_cpu_usage();
         let mem = sys.used_memory() / 1024 / 1024; // MB
 
-        // Draw
+        // Draw (a poisoned lock means a worker panicked; still draw)
         {
-            let state_guard = state.lock().unwrap();
+            let state_guard = state.lock().unwrap_or_else(|p| p.into_inner());
             terminal.draw(|f| ui(f, &state_guard, cpu, mem))?;
 
             if state_guard.should_quit {
@@ -169,9 +210,18 @@ pub fn run_tui(state: Arc<Mutex<TuiState>>) -> Result<()> {
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    let mut state_guard = state.lock().unwrap();
+                    let mut state_guard = state.lock().unwrap_or_else(|p| p.into_inner());
+                    let ctrl_c = key.code == KeyCode::Char('c')
+                        && key
+                            .modifiers
+                            .contains(crossterm::event::KeyModifiers::CONTROL);
                     match key.code {
+                        _ if ctrl_c => {
+                            state_guard.cancel_requested = true;
+                            state_guard.should_quit = true;
+                        }
                         KeyCode::Char('q') | KeyCode::Esc => {
+                            state_guard.cancel_requested = true;
                             state_guard.should_quit = true;
                         }
                         KeyCode::Tab | KeyCode::Down | KeyCode::Char('j') => {
@@ -187,15 +237,7 @@ pub fn run_tui(state: Arc<Mutex<TuiState>>) -> Result<()> {
         }
     }
 
-    // Cleanup
-    disable_raw_mode()?;
-    execute!(
-        terminal.backend_mut(),
-        LeaveAlternateScreen,
-        DisableMouseCapture
-    )?;
     terminal.show_cursor()?;
-
     Ok(())
 }
 
@@ -257,17 +299,12 @@ fn draw_header(f: &mut Frame, area: Rect, state: &TuiState, cpu: f32, mem: u64) 
     f.render_widget(logo, header_chunks[0]);
 
     // Status
-    let p2p = if state.p2p_peers > 0 {
-        format!("P2P:{}", state.p2p_peers)
-    } else {
-        "P2P:Off".to_string()
-    };
     let cloud = if state.cloud_enabled {
         "☁️ On"
     } else {
         "☁️ Off"
     };
-    let status_text = format!(" {} │ {} │ CPU:{}% │ {}MB", p2p, cloud, cpu as u32, mem);
+    let status_text = format!(" {} │ CPU:{}% │ {}MB", cloud, cpu as u32, mem);
     let status = Paragraph::new(status_text)
         .style(Style::default().fg(Color::Gray))
         .block(Block::default().borders(Borders::ALL));
