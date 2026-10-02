@@ -81,3 +81,5 @@ PR #69 و همهٔ ۹ PR اصلی با merge commit ادغام شدند. هر د
 پس از merge، Dependabot شش PR تازه ساخت: #70 Tokio 1.50، #71 UUID 1.26، #72 pnpm/action-setup v6، #73 dirs 7، #74 mdns-sd 0.21 و #75 dialoguer 0.12. commitهای اصلی آن‌ها در شاخهٔ codex/dependency-backlog حفظ شدند؛ ۹۷ تست all-features و Clippy برای این ترکیب نیز محلی پاس شدند.
 
 workflow انتشار روی main ناسازگاری Changesets action v2 با CLI v2 را آشکار کرد. CLI به v3 و changelog-github به v1 ارتقا یافتند؛ Node محیط توسعهٔ CI و انتشار به 22 رسید و اعتبارسنجی release plan به CI اضافه شد. این تغییر نیاز Node مصرف‌کنندهٔ منتشرشدهٔ neex را تغییر نمی‌دهد.
+
+PR #76 و شش PR وابستگی نیز merge شدند؛ هر ۱۲ job روی head نهایی و روی main موفق بودند. بررسی لاگ workflow انتشار آشکار کرد که publish-script مرکب، && را به‌عنوان آرگومان build منتقل می‌کند و publish اجرا نمی‌شود. build به step صریح منتقل شد و publish-script فقط pnpm run release را اجرا می‌کند؛ CLI v3 نیز CHANGESETS_OUTPUT را از محیط دریافت می‌کند تا Action گزارش انتشار، tag و release را بخواند. publish-plan واقعی هیچ نسخهٔ منتشرنشده‌ای نشان نداد؛ این اصلاح نسخهٔ تازه‌ای برای npm تعریف نمی‌کند.

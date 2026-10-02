@@ -35,12 +35,15 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build npm packages
+        run: pnpm run build
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v2.1.2
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          publish-script: pnpm run build && pnpm release
+          publish-script: pnpm run release
           version-script: pnpm run version
           pr-base-branch: main
           commit-message: "chore: update versions"
