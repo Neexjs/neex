@@ -10,7 +10,9 @@
     "changeset": "changeset",
     "version": "changeset version",
     "release": "changeset publish",
-    "build": "pnpm --filter \"./npm/*\" run build"
+    "build": "pnpm --filter \"./npm/*\" run build",
+    "test:consumer": "node scripts/consumer-smoke.cjs",
+    "test:templates": "node scripts/template-smoke.cjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.27.1",

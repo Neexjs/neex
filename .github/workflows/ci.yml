@@ -11,8 +11,12 @@ env:
 
 jobs:
   test:
-    name: Test
-    runs-on: ubuntu-latest
+    name: Test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
 
@@ -47,7 +51,7 @@ jobs:
           fi
 
       - name: Clippy
-        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
   js:
     name: JS packages
@@ -67,3 +71,63 @@ jobs:
 
       - name: Build
         run: pnpm run build
+
+      - name: Typecheck scaffolder
+        run: pnpm --filter create-neex typecheck
+
+      - name: Test scaffolder
+        run: pnpm --filter create-neex test
+
+  consumer:
+    name: Packed npm consumer (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: cargo build --release -p neex-cli --locked
+      - name: Install packed packages and exercise launcher
+        run: node scripts/consumer-smoke.cjs
+
+  templates:
+    name: Template production smoke (${{ matrix.template }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        template: [next-express, next-hono]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - uses: oven-sh/setup-bun@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: cargo build --release -p neex-cli --locked
+      - name: Build template and run production services
+        run: node scripts/template-smoke.cjs ${{ matrix.template }}
+
+  experimental:
+    name: Isolated P2P prototype
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p neex-daemon --features experimental-p2p --locked
