@@ -24,10 +24,10 @@ jobs:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
-      - name: Setup Node.js 20
+      - name: Setup Node.js 22
         uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
       - uses: pnpm/action-setup@v6
@@ -41,7 +41,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           publish-script: pnpm run build && pnpm release
-          version-script: pnpm version
+          version-script: pnpm run version
+          pr-base-branch: main
           commit-message: "chore: update versions"
           pr-title: "chore: update versions"
         env:
