@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const os = require('os');
 
 const PLATFORMS = {
@@ -43,7 +43,7 @@ function findBinary() {
 
   try {
     // After the postinstall copy (which is chmod'ed), before the guessed paths
-    const resolvedPath = require.resolve(`${pkg}/bin/neex`);
+    const resolvedPath = require.resolve(`${pkg}/bin/${process.platform === 'win32' ? 'neex.exe' : 'neex'}`);
     if (resolvedPath) {
       possiblePaths.splice(1, 0, resolvedPath);
     }
@@ -73,7 +73,7 @@ function ensureExecutable(binPath) {
     try {
       fs.chmodSync(binPath, 0o755);
     } catch (chmodErr) {
-      // Read-only install location; spawnSync will report EACCES
+      // Read-only install location; spawn will report EACCES
     }
   }
 }
@@ -88,23 +88,29 @@ function run() {
     process.exit(1);
   }
 
-  const result = spawnSync(binaryPath, process.argv.slice(2), {
+  const child = spawn(binaryPath, process.argv.slice(2), {
     stdio: 'inherit',
   });
 
-  if (result.error) {
-    console.error(`❌ Failed to run ${binaryPath}: ${result.error.message}`);
+  // Keep the launcher alive until the native CLI has cleaned up its tasks.
+  // spawnSync blocks JS signal handlers and can orphan the native process.
+  for (const signal of ['SIGINT', 'SIGTERM', 'SIGHUP']) {
+    process.on(signal, () => { child.kill(signal); });
+  }
+
+  child.once('error', error => {
+    console.error(`❌ Failed to run ${binaryPath}: ${error.message}`);
     process.exit(1);
-  }
-
-  if (result.signal) {
-    // Re-raise so the parent sees the same signal; exit 1 if it is caught
-    process.exitCode = 1;
-    process.kill(process.pid, result.signal);
-    return;
-  }
-
-  process.exit(result.status !== null ? result.status : 1);
+  });
+  child.once('exit', (code, signal) => {
+    if (signal) {
+      process.removeAllListeners(signal);
+      process.exitCode = 1;
+      process.kill(process.pid, signal);
+    } else {
+      process.exit(code ?? 1);
+    }
+  });
 }
 
 run();

@@ -46,7 +46,7 @@ function findBinary(pkg) {
   ];
 
   try {
-    const resolvedPath = require.resolve(`${pkg}/bin/neex`);
+    const resolvedPath = require.resolve(`${pkg}/bin/${process.platform === 'win32' ? 'neex.exe' : 'neex'}`);
     if (resolvedPath) {
       possiblePaths.unshift(resolvedPath);
     }
