@@ -52,9 +52,9 @@ pub fn extract_symbols(source: &str, is_typescript: bool) -> Result<FileSymbols>
     let mut parser = Parser::new();
 
     let language = if is_typescript {
-        tree_sitter_typescript::language_tsx()
+        tree_sitter_typescript::LANGUAGE_TSX.into()
     } else {
-        tree_sitter_javascript::language()
+        tree_sitter_javascript::LANGUAGE.into()
     };
 
     parser.set_language(&language)?;

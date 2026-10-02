@@ -24,9 +24,9 @@ pub fn hash_ast(file_path: &Path, content: &str) -> Result<String> {
 
     // Get appropriate language
     let language = match ext {
-        "ts" | "mts" | "cts" => tree_sitter_typescript::language_typescript(),
-        "tsx" => tree_sitter_typescript::language_tsx(),
-        "js" | "mjs" | "cjs" | "jsx" => tree_sitter_javascript::language(),
+        "ts" | "mts" | "cts" => tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+        "tsx" => tree_sitter_typescript::LANGUAGE_TSX.into(),
+        "js" | "mjs" | "cjs" | "jsx" => tree_sitter_javascript::LANGUAGE.into(),
         _ => {
             // Non-parseable file, hash raw content
             return hash_raw(content);

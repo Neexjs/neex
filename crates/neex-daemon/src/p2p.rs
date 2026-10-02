@@ -79,7 +79,7 @@ impl PeerManager {
         let local_id = self.local_id.clone();
 
         tokio::spawn(async move {
-            while let Ok(event) = receiver.recv() {
+            while let Ok(event) = receiver.recv_async().await {
                 match event {
                     ServiceEvent::ServiceResolved(info) => {
                         // Skip self
@@ -88,9 +88,23 @@ impl PeerManager {
                         }
 
                         for addr in info.get_addresses() {
+                            let addr = match addr {
+                                mdns_sd::ScopedIp::V4(v4) => {
+                                    SocketAddr::new((*v4.addr()).into(), info.get_port())
+                                }
+                                mdns_sd::ScopedIp::V6(v6) => {
+                                    SocketAddr::V6(std::net::SocketAddrV6::new(
+                                        *v6.addr(),
+                                        info.get_port(),
+                                        0,
+                                        v6.scope_id().index,
+                                    ))
+                                }
+                                _ => continue,
+                            };
                             let peer = PeerInfo {
                                 id: info.get_fullname().to_string(),
-                                addr: SocketAddr::new(*addr, info.get_port()),
+                                addr,
                                 hostname: info.get_hostname().to_string(),
                             };
 
