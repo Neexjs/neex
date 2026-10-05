@@ -23,7 +23,7 @@ globset = { workspace = true }
 dialoguer = { workspace = true }
 
 # TUI
-ratatui = "0.29"
+ratatui = "0.30"
 crossterm = "0.28"
 sysinfo = "0.32"
 
